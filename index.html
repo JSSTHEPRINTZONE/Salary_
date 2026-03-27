@@ -1,0 +1,2203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Salary Management System</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#eef5fb;--surf:#fff;--surf2:#f4f9fd;--surf3:#daeeff;
+  --border:#c8dff0;--border2:#8ec4e8;
+  --accent:#1565a8;--accent2:#0d4a8a;--accentlt:#e0f0ff;
+  --green:#1a7a3c;--greenlt:#d4f5e4;--greenbr:#a8dfc0;
+  --red:#c0392b;--redlt:#fde8e8;--redbr:#f0b0b0;
+  --orange:#b85c00;--orangelt:#fff3d4;--orangebr:#f0cc80;
+  --text:#0a2540;--text2:#4a7a9b;--text3:#9ab8cc;
+  --mono:"IBM Plex Mono",monospace;--sans:"IBM Plex Sans",sans-serif;
+  --r:8px;--shadow:0 2px 8px rgba(21,101,168,.10);
+}
+html,body{width:100%;min-height:100vh;font-family:var(--sans);font-size:14px;background:var(--bg);color:var(--text)}
+input,select{font-family:var(--sans);font-size:13px;background:#fff;border:1px solid var(--border2);color:var(--text);border-radius:5px;padding:5px 8px;outline:none;transition:border .15s;width:100%}
+input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(21,101,168,.1)}
+input[type=number]{-moz-appearance:textfield;text-align:right}
+input[type=number]::-webkit-inner-spin-button{opacity:.5}
+button{font-family:var(--sans);cursor:pointer;border:none;border-radius:6px;transition:all .15s;font-size:13px}
+label{font-size:11px;color:var(--text2);display:block;margin-bottom:3px;font-weight:500}
+
+/* LOADER */
+#loader{display:none;position:fixed;inset:0;background:rgba(255,255,255,.75);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:10px}
+#loader.show{display:flex}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* TOAST */
+#toast-container{position:fixed;bottom:20px;right:20px;z-index:9999;display:flex;flex-direction:column;gap:8px}
+.toast{padding:10px 16px;border-radius:8px;color:#fff;font-size:13px;box-shadow:0 4px 12px rgba(0,0,0,.15);animation:slideIn .3s ease;max-width:320px}
+.toast.success{background:var(--green)}.toast.error{background:var(--red)}.toast.warn{background:var(--orange)}.toast.info{background:var(--accent)}
+@keyframes slideIn{from{transform:translateX(100%);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* SYNC BANNER */
+#sync-banner{background:var(--orangelt);border-bottom:2px solid var(--orangebr);padding:8px 20px;font-size:13px;color:var(--orange);display:none;align-items:center;gap:12px}
+#sync-banner.show{display:flex}
+
+/* PIN */
+#pin-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;flex-direction:column;background:var(--bg)}
+.pin-wrap{background:var(--surf);border:1px solid var(--border);border-radius:16px;padding:32px;width:340px;text-align:center;box-shadow:var(--shadow)}
+.pin-logo{font-family:var(--mono);font-size:10px;letter-spacing:.18em;color:var(--text3);text-transform:uppercase;margin-bottom:14px}
+.pin-title{font-size:20px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.pin-sub{font-size:12px;color:var(--text2);margin-bottom:18px}
+.pin-toggle{display:flex;gap:6px;margin-bottom:18px;background:var(--surf2);border-radius:8px;padding:3px}
+.pin-role{flex:1;padding:7px;border-radius:6px;font-size:12px;font-weight:600;background:transparent;color:var(--text2);border:none;cursor:pointer;transition:all .2s}
+.pin-role.active{background:var(--accent);color:#fff}
+.pin-dots{display:flex;gap:12px;justify-content:center;margin-bottom:18px}
+.pin-dot{width:12px;height:12px;border-radius:50%;border:2px solid var(--border2);background:transparent;transition:all .2s}
+.pin-dot.filled{background:var(--accent);border-color:var(--accent)}
+.pin-keypad{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.pin-key{background:var(--surf2);border:1px solid var(--border);color:var(--text);font-family:var(--mono);font-size:18px;font-weight:600;padding:13px;border-radius:8px;cursor:pointer;user-select:none;transition:all .12s}
+.pin-key:hover{background:var(--surf3)}.pin-key:active{transform:scale(.92)}
+.pin-key.del{color:var(--red);font-size:14px}.pin-key.zero{grid-column:2}
+.pin-msg{margin-top:10px;font-size:12px;font-family:var(--mono);min-height:18px}
+.pin-msg.err{color:var(--red)}.pin-msg.ok{color:var(--green)}
+
+/* APP */
+#app{display:none;flex-direction:column;min-height:100vh}
+.topbar{background:var(--accent);height:50px;display:flex;align-items:center;padding:0 16px;gap:8px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(21,101,168,.2)}
+.topbar-title{font-family:var(--mono);font-size:12px;color:#fff;font-weight:600;letter-spacing:.05em;flex:1}
+.topbar-month{background:#fff;border:none;color:var(--accent);font-family:var(--mono);font-size:12px;font-weight:700;padding:5px 8px;border-radius:6px;cursor:pointer;width:auto}
+.topbar-badge{background:rgba(255,255,255,.18);color:#fff;font-size:11px;padding:3px 9px;border-radius:20px;font-family:var(--mono)}
+.topbar-badge.view{background:rgba(255,200,0,.22);color:#ffe080}
+.tbtn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.3);color:#fff;padding:5px 10px;border-radius:6px;font-size:12px}
+.tbtn:hover{background:rgba(255,255,255,.28)}
+
+/* TABS */
+.tabs{display:flex;background:var(--surf);border-bottom:2px solid var(--border);padding:0 16px;gap:0;overflow-x:auto}
+.tab{padding:10px 14px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;white-space:nowrap;transition:all .15s;user-select:none}
+.tab:hover{color:var(--accent)}.tab.active{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+
+/* CONTENT */
+.content{padding:16px;flex:1}
+
+/* BUTTONS */
+.btn{padding:7px 14px;font-weight:500;border-radius:6px;font-size:13px;cursor:pointer;border:none}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:var(--accent2)}
+.btn-success{background:var(--greenlt);color:var(--green);border:1px solid var(--greenbr)}.btn-success:hover{background:var(--greenbr)}
+.btn-danger{background:var(--redlt);color:var(--red);border:1px solid var(--redbr)}
+.btn-outline{background:#fff;border:1px solid var(--border2);color:var(--text2)}.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.btn-warn{background:var(--orangelt);color:var(--orange);border:1px solid var(--orangebr)}
+.btn-sm{padding:5px 11px;font-size:12px}.btn-xs{padding:3px 8px;font-size:11px}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);border-radius:var(--r);background:var(--surf)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{background:var(--surf2);padding:8px 10px;font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;border-bottom:2px solid var(--border);white-space:nowrap;text-align:left}
+.tbl th.c{text-align:center}
+.tbl td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:middle}
+.tbl td.c{text-align:center}
+.tbl tr:last-child td{border-bottom:none}
+.tbl tr:hover td{background:var(--accentlt)}
+
+/* SALARY TABLE */
+.stbl{width:100%;border-collapse:collapse;font-size:12px}
+.stbl th{background:var(--surf2);padding:5px 4px;font-size:10px;font-family:var(--mono);color:var(--text3);text-transform:uppercase;border-bottom:2px solid var(--border);white-space:nowrap;text-align:center;position:sticky;top:0;z-index:2;box-shadow:0 2px 3px rgba(0,0,0,.06)}
+.salary-scroll-wrap{overflow:auto;max-height:calc(100vh - 220px);border:1px solid var(--border);border-radius:var(--r);background:var(--surf)}
+.salary-scroll-wrap .stbl th{position:sticky;top:0;z-index:3}
+.stbl th.lft{text-align:left;padding-left:8px}
+.stbl td{padding:3px 3px;border-bottom:1px solid var(--border);vertical-align:middle;text-align:center}
+.stbl td.lft{text-align:left;padding-left:6px}
+.stbl{font-size:11.5px}
+.stbl tr:last-child td{border-bottom:none}
+.stbl tr.saved td{background:#f8fcff}
+.stbl tr.finalized td{background:#f0fdf4}
+.stbl tr.skipped td{background:#fafafa;opacity:.6}
+.stbl tr.edited td{background:var(--yellowlt,#fffbe6)}
+.stbl tr:hover td{background:var(--accentlt)}
+
+/* CELL INPUTS */
+.ci{border:1px solid transparent;background:transparent;text-align:right;width:62px;font-size:12px;padding:3px 4px;border-radius:4px;color:var(--text);font-family:var(--mono)}
+.ci:focus{border-color:var(--accent);background:#fff;box-shadow:0 0 0 2px rgba(21,101,168,.1)}
+.ci:hover:not(:focus):not([readonly]){border-color:var(--border2);background:#fff}
+.ci:not([readonly]){border-color:var(--border);background:#fff}
+.ci[readonly]{border-color:transparent;background:transparent;cursor:default}
+.ci.changed{border-color:var(--orange)!important;background:var(--orangelt)!important}
+.ci[readonly]{color:var(--text3);cursor:default}
+.ci[readonly]:hover{border-color:transparent;background:transparent}
+.net-pay{font-family:var(--mono);font-weight:700;color:var(--accent);font-size:13px;white-space:nowrap}
+.net-pay.zero{color:var(--text3)}
+
+/* STATUS PILLS */
+.st{display:inline-block;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:20px;white-space:nowrap;border:1px solid}
+.st-new{background:var(--surf2);color:var(--text3);border-color:var(--border)}
+.st-saved{background:var(--accentlt);color:var(--accent);border-color:var(--border2)}
+.st-paid{background:var(--greenlt);color:var(--green);border-color:var(--greenbr)}
+.st-skip{background:#f0f0f0;color:#888;border-color:#ddd}
+.st-sync{background:var(--orangelt);color:#7a5500;border-color:var(--orangebr)}
+.st-edit{background:#fffbe6;color:#7a5500;border-color:var(--orangebr)}
+
+/* PILLS */
+.pill{display:inline-block;font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:20px;font-weight:600}
+.pill.t1{background:var(--greenlt);color:#1a5c2a;border:1px solid var(--greenbr)}
+.pill.t2{background:var(--accentlt);color:var(--accent2);border:1px solid var(--border2)}
+.pill.cash{background:#fff8e0;color:#7a5000;border:1px solid #f0d080}
+.pill.bank{background:#e0f0ff;color:#0a4a8a;border:1px solid #a0c8e8}
+.pill.both{background:#f0e8ff;color:#5a1a8a;border:1px solid #c8a8e8}
+
+/* CARDS */
+.card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow)}
+.card-hdr{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:8px}
+
+/* OVERVIEW */
+.ov-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px}
+.ov-card{background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:14px;box-shadow:var(--shadow)}
+.ov-lbl{font-size:11px;color:var(--text2);margin-bottom:4px}
+.ov-val{font-size:22px;font-weight:700;font-family:var(--mono);color:var(--accent)}
+.ov-sub{font-size:11px;color:var(--text3);margin-top:2px}
+.ov-card.green .ov-val{color:var(--green)}.ov-card.orange .ov-val{color:var(--orange)}.ov-card.red .ov-val{color:var(--red)}
+
+/* MODAL */
+.modal-bg{display:none;position:fixed;inset:0;background:rgba(10,37,64,.45);z-index:200;align-items:center;justify-content:center}
+.modal-bg.open{display:flex}
+.modal{background:var(--surf);border:1px solid var(--border);border-radius:12px;padding:22px;width:500px;max-width:95vw;max-height:88vh;overflow-y:auto;box-shadow:0 8px 32px rgba(21,101,168,.18)}
+.modal h3{font-size:15px;font-weight:700;margin-bottom:16px;color:var(--accent)}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:1px solid var(--border)}
+
+/* FORMS */
+.fg{display:grid;gap:10px;margin-bottom:10px}
+.fg2{grid-template-columns:1fr 1fr}.fg3{grid-template-columns:1fr 1fr 1fr}
+.fgrp{display:flex;flex-direction:column;gap:3px}
+
+/* ALERTS */
+.alert{padding:9px 13px;border-radius:6px;font-size:12px;margin-bottom:10px;line-height:1.5}
+.alert-info{background:var(--accentlt);border:1px solid var(--border2);color:var(--accent2)}
+.alert-warn{background:var(--orangelt);border:1px solid var(--orangebr);color:var(--orange)}
+.alert-success{background:var(--greenlt);border:1px solid var(--greenbr);color:var(--green)}
+.alert-danger{background:var(--redlt);border:1px solid var(--redbr);color:var(--red)}
+
+/* SECTION */
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px}
+.sec-title{font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.badge{font-size:10px;font-family:var(--mono);padding:2px 7px;border-radius:20px;background:var(--surf3);color:var(--text2);border:1px solid var(--border)}
+.empty{text-align:center;padding:32px;color:var(--text3);font-size:13px}
+.view-note{background:var(--orangelt);border:1px solid var(--orangebr);color:var(--orange);padding:7px 12px;border-radius:6px;font-size:12px;margin-bottom:10px}
+.flex{display:flex}.gap8{gap:8px}.gap12{gap:12px}.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.mono{font-family:var(--mono)}.text2{color:var(--text2)}.text3{color:var(--text3)}
+hr{border:none;border-top:1px solid var(--border);margin:14px 0}
+
+/* SETTINGS */
+.sg{display:grid;grid-template-columns:180px 1fr;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;background:var(--surf)}
+.snav{border-right:1px solid var(--border);background:var(--surf2)}
+.si{padding:10px 14px;font-size:13px;cursor:pointer;color:var(--text2);border-left:3px solid transparent;transition:all .15s}
+.si:hover{background:var(--accentlt);color:var(--accent)}
+.si.active{background:var(--accentlt);color:var(--accent);border-left-color:var(--accent);font-weight:600}
+.sp{padding:18px}
+.sp h4{font-size:13px;font-weight:600;color:var(--accent);margin-bottom:10px;padding-bottom:6px;border-bottom:1px solid var(--border)}
+
+/* FILTER BAR */
+.filter-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:8px 12px;margin-bottom:12px}
+.filter-bar select,.filter-bar input[type=text]{width:auto;min-width:100px;font-size:12px;padding:4px 8px}
+.fsep{width:1px;height:18px;background:var(--border);margin:0 2px}
+.batch-bar{display:flex;align-items:center;gap:10px;background:var(--surf);border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;margin-bottom:10px}
+
+/* PAYMENT TAB */
+.pay-row-paid td{background:#f0fdf4}
+.pay-row-partial td{background:var(--orangelt)}
+.pay-row-unpaid td{background:#fff}
+
+/* PRINT */
+@media print{
+  @page{size:A4 landscape;margin:7mm}
+  #pin-screen,#app .topbar,#app .tabs,#app .content,#loader,#toast-container,#sync-banner{display:none!important}
+  #print-view{display:block!important}
+  body{background:#fff;color:#000;font-size:8px}
+  .print-co{text-align:center;margin-bottom:3mm}
+  .print-co h2{font-size:13px;font-weight:700}
+  .ptbl{width:100%;border-collapse:collapse;font-size:7px}
+  .ptbl th{background:#e8e8e8;border:1px solid #999;padding:2px;text-align:center;font-weight:700}
+  .ptbl td{border:1px solid #ccc;padding:2px;text-align:center}
+  .ptbl td.lft{text-align:left}
+  .ptbl tr.sechd td{background:#d0d0d0;font-weight:700;text-align:left}
+  .ptbl tr.totrow td{background:#f0f0f0;font-weight:700;border-top:2px solid #555}
+  .print-footer{margin-top:3mm;font-size:7px;color:#666;display:flex;justify-content:space-between}
+}
+#print-view{display:none}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+<div id="loader"><div class="spinner"></div></div>
+<div id="toast-container"></div>
+<div id="sync-banner">
+  <span>⚠️ <strong id="sync-count">0</strong> entries saved locally — </span>
+  <button class="btn btn-warn btn-sm" onclick="syncPending()">🔄 Sync Now</button>
+  <button class="btn btn-outline btn-sm" onclick="document.getElementById('sync-banner').classList.remove('show')">Dismiss</button>
+</div>
+
+<!-- DRAFT BANNER -->
+<div id="draft-banner" style="background:#f0fdf4;border-bottom:2px solid var(--greenbr);padding:8px 20px;font-size:13px;color:var(--green);display:none;align-items:center;gap:12px">
+  <span>📝 Draft saved — <strong id="draft-count">0</strong> workers have unsaved entries for this month</span>
+  <button class="btn btn-success btn-sm" onclick="restoreDraft()">↩ Restore Draft</button>
+  <button class="btn btn-outline btn-sm" onclick="discardDraft()">✕ Discard</button>
+</div>
+
+<!-- PIN SCREEN -->
+<div id="pin-screen">
+  <div class="pin-wrap">
+    <div class="pin-logo">Salary Management System</div>
+    <div class="pin-title" id="pin-title">Welcome</div>
+    <div class="pin-sub" id="pin-sub">Select role and enter PIN</div>
+    <div class="pin-toggle" id="pin-toggle">
+      <button class="pin-role active" id="role-admin" onclick="setRole('admin')">🔑 Admin</button>
+      <button class="pin-role" id="role-view" onclick="setRole('view')">👁 View</button>
+    </div>
+    <div class="pin-dots">
+      <div class="pin-dot" id="d0"></div><div class="pin-dot" id="d1"></div>
+      <div class="pin-dot" id="d2"></div><div class="pin-dot" id="d3"></div>
+    </div>
+    <div class="pin-keypad">
+      <button class="pin-key" onclick="pinKey(1)">1</button>
+      <button class="pin-key" onclick="pinKey(2)">2</button>
+      <button class="pin-key" onclick="pinKey(3)">3</button>
+      <button class="pin-key" onclick="pinKey(4)">4</button>
+      <button class="pin-key" onclick="pinKey(5)">5</button>
+      <button class="pin-key" onclick="pinKey(6)">6</button>
+      <button class="pin-key" onclick="pinKey(7)">7</button>
+      <button class="pin-key" onclick="pinKey(8)">8</button>
+      <button class="pin-key" onclick="pinKey(9)">9</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+      <button class="pin-key zero" onclick="pinKey(0)">0</button>
+    </div>
+    <div class="pin-msg" id="pin-msg"></div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="topbar">
+    <div class="topbar-title">💰 SALARY MANAGER</div>
+    <select class="topbar-month" id="active-month" onchange="onMonthChange()"></select>
+    <span class="topbar-badge" id="access-badge">Admin</span>
+    <button class="tbtn" onclick="refreshAll()">🔄</button>
+    <button class="tbtn" onclick="printMonth()">🖨 Print</button>
+    <button class="tbtn" onclick="lockApp()">🔒</button>
+  </div>
+  <div class="tabs" id="tab-bar">
+    <div class="tab active" data-tab="workers">👷 Workers</div>
+    <div class="tab" data-tab="salary">💰 Process Salary</div>
+    <div class="tab" data-tab="payment">💳 Payment</div>
+    <div class="tab" data-tab="overview">📊 Overview</div>
+    <div class="tab" data-tab="advances">💵 Advances</div>
+    <div class="tab" data-tab="ledger">📒 Ledger</div>
+    <div class="tab admin-only" data-tab="settings">⚙️ Settings</div>
+  </div>
+  <div class="content" id="content"></div>
+</div>
+
+<div id="print-view"><div id="print-container"></div></div>
+
+<!-- ADVANCE MODAL -->
+<div class="modal-bg" id="adv-modal">
+  <div class="modal">
+    <h3>Give Advance</h3>
+    <div class="fg fg2">
+      <div class="fgrp"><label>Worker</label><select id="adv-worker" onchange="showAdvBal()"></select></div>
+      <div class="fgrp"><label>Date</label><input type="date" id="adv-date"/></div>
+    </div>
+    <div id="adv-bal-info" style="background:var(--surf2);border:1px solid var(--border);border-radius:6px;padding:10px;margin-bottom:10px;font-size:12px"></div>
+    <div class="fg fg2">
+      <div class="fgrp"><label>Amount (₹)</label><input type="number" id="adv-amount" placeholder="0" oninput="checkAdvLimit()"/></div>
+      <div class="fgrp"><label>Note</label><input id="adv-note" placeholder="Reason"/></div>
+    </div>
+    <div id="adv-warn" class="alert alert-warn" style="display:none"></div>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('adv-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveAdvance()">Save Advance</button>
+    </div>
+  </div>
+</div>
+
+<!-- PAYMENT MODAL -->
+<div class="modal-bg" id="pay-modal">
+  <div class="modal">
+    <h3 id="pay-title">Enter Payment</h3>
+    <div id="pay-summary" style="background:var(--surf2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px"></div>
+    <div class="fg fg2">
+      <div class="fgrp"><label>Payment Mode</label>
+        <select id="pay-mode" onchange="onPayMode()">
+          <option value="Cash">Cash</option>
+          <option value="Bank">Bank Transfer</option>
+          <option value="Both">Both (Cash + Bank)</option>
+        </select>
+      </div>
+      <div class="fgrp"><label>Actual Amount Paid (₹)</label>
+        <input type="number" id="pay-actual" placeholder="0" oninput="onPayActual()"/>
+      </div>
+    </div>
+    <div id="pay-split" style="display:none" class="fg fg2">
+      <div class="fgrp"><label>Cash Amount (₹)</label><input type="number" id="pay-cash" placeholder="0" oninput="onPaySplit()"/></div>
+      <div class="fgrp"><label>Bank Amount (₹)</label><input type="number" id="pay-bank" placeholder="0" oninput="onPaySplit()"/></div>
+    </div>
+    <div id="pay-diff" class="mt8"></div>
+    <input type="hidden" id="pay-log-id"/>
+    <input type="hidden" id="pay-worker-id"/>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('pay-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmPayment()">✓ Confirm Payment</button>
+    </div>
+  </div>
+</div>
+
+<!-- WORKER MODAL -->
+<div class="modal-bg" id="worker-modal">
+  <div class="modal">
+    <h3 id="wm-title">Add Worker</h3>
+    <div class="fg fg2">
+      <div class="fgrp"><label>Full Name</label><input id="wm-name"/></div>
+      <div class="fgrp"><label>Type</label>
+        <select id="wm-type"><option value="Labour" id="wm-t1">Labour</option><option value="Employee" id="wm-t2">Employee</option></select>
+      </div>
+    </div>
+    <div class="fg fg2">
+      <div class="fgrp"><label>Monthly Salary (₹)</label><input type="number" id="wm-salary"/></div>
+      <div class="fgrp"><label>Advance Limit (₹)</label><input type="number" id="wm-adv-limit" placeholder="10000"/></div>
+    </div>
+    <div class="fg fg2">
+      <div class="fgrp"><label>Payment Mode</label>
+        <select id="wm-pay"><option value="Cash">Cash</option><option value="Bank">Bank</option><option value="Both">Both</option></select>
+      </div>
+      <div class="fgrp"><label>Bank Account</label><input id="wm-bank" placeholder="Optional"/></div>
+    </div>
+    <div class="fg fg2">
+      <div class="fgrp"><label>ESI Eligible</label>
+        <select id="wm-esi">
+          <option value="false">No — ESI not applicable</option>
+          <option value="true">Yes — Deduct ESI (0.75% of salary)</option>
+        </select>
+      </div>
+    </div>
+    <div id="wm-cf"></div>
+    <input type="hidden" id="wm-id"/>
+    <div class="modal-footer">
+      <button class="btn btn-outline" onclick="closeModal('worker-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveWorker()">Save Worker</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+let SCRIPT_URL=localStorage.getItem('sms_url')||''
+let accessRole=''
+let pinRole='admin',pinBuf=[],confirmPin=null,setupPhase=''
+let workers=[],advances=[],salaryLogs=[],customFields=[],openingBalances={}
+let settings={COMPANY_NAME:'',COMPANY_ADDRESS:'',NORMAL_HRS:'8',OT_MULTIPLIER:'1',
+  ROUNDOFF:'0',DEFAULT_PAYMENT:'Cash',TYPE1_LABEL:'Labour',TYPE2_LABEL:'Employee',
+  OB_DONE:'false',HR_INPUT_MODE:'B',ADVANCE_LIMIT_DEFAULT:'10000',START_MONTH:'',
+  ESI_RATE:'0.0075'}
+let advSummary={}
+let archiveStatus={}
+let activeMonth=''
+let activeTab='workers'
+let activeSP='company'
+// Salary table state
+let tableEdits={}         // {wid: {wdays, otHrs, advDed, cane, ...}} — live unsaved edits
+let rowLocks={}           // {wid: true} — rows locked (saved, need confirm to edit)
+let editUnlocked=new Set()// wids that have been unlocked for editing
+const PENDING_KEY='sms_pending_v4'
+const DRAFT_PREFIX='sms_draft_'  // + month e.g. sms_draft_2026-03
+
+// ── DRAFT AUTO-SAVE ──────────────────────────────────────────
+function draftKey(month){ return DRAFT_PREFIX+(month||activeMonth) }
+
+function saveDraft(){
+  if(!Object.keys(tableEdits).length) return
+  try{
+    localStorage.setItem(draftKey(), JSON.stringify(tableEdits))
+    // Show brief "draft saved" indicator
+    const ind=document.getElementById('draft-autosave-indicator')
+    if(ind){
+      ind.style.display='inline'
+      clearTimeout(ind._t)
+      ind._t=setTimeout(()=>ind.style.display='none', 2000)
+    }
+  }catch(e){}
+}
+
+function loadDraft(month){
+  // Restore draft edits for a month (only if not yet saved to sheet)
+  try{
+    const raw=localStorage.getItem(draftKey(month||activeMonth))
+    if(!raw) return {}
+    return JSON.parse(raw)||{}
+  }catch(e){ return {} }
+}
+
+function clearDraft(month){
+  localStorage.removeItem(draftKey(month||activeMonth))
+  updateDraftBanner()
+}
+
+function hasDraft(month){
+  try{
+    const raw=localStorage.getItem(draftKey(month||activeMonth))
+    if(!raw) return false
+    const d=JSON.parse(raw)
+    return d && Object.keys(d).length > 0
+  }catch(e){ return false }
+}
+
+function updateDraftBanner(){
+  const el=document.getElementById('draft-banner')
+  if(!el) return
+  if(hasDraft()){
+    const d=loadDraft()
+    const count=Object.keys(d).length
+    el.style.display='flex'
+    document.getElementById('draft-count').textContent=count
+  } else {
+    el.style.display='none'
+  }
+}
+
+function restoreDraft(){
+  const draft=loadDraft()
+  if(!Object.keys(draft).length){
+    toast('No draft found for this month','info')
+    return
+  }
+  // Merge draft into tableEdits — don't overwrite already-edited cells
+  Object.keys(draft).forEach(wid=>{
+    if(!tableEdits[wid]) tableEdits[wid]=draft[wid]
+  })
+  buildSalaryTable()
+  updateEditCount()
+  toast('Draft restored — '+Object.keys(draft).length+' workers','success')
+  updateDraftBanner()
+}
+
+function discardDraft(){
+  if(!confirm('Discard saved draft for this month?')) return
+  clearDraft()
+  toast('Draft discarded','info')
+}
+
+// ═══════════════════════════════════════════════════════════
+// API (JSONP)
+// ═══════════════════════════════════════════════════════════
+function api(action,params={}){
+  return new Promise(resolve=>{
+    if(!SCRIPT_URL){resolve(null);return;}
+    showLoader(true)
+    const cb='sms_'+Date.now()+'_'+Math.random().toString(36).slice(2)
+    const timer=setTimeout(()=>{cleanup();showLoader(false);resolve(null);},25000)
+    function cleanup(){clearTimeout(timer);delete window[cb];const s=document.getElementById(cb);if(s)s.remove();}
+    window[cb]=r=>{cleanup();showLoader(false);resolve(r);}
+    const url=new URL(SCRIPT_URL)
+    url.searchParams.set('action',action)
+    url.searchParams.set('callback',cb)
+    for(const[k,v]of Object.entries(params))
+      url.searchParams.set(k,typeof v==='object'?JSON.stringify(v):String(v))
+    const s=document.createElement('script')
+    s.id=cb;s.src=url.toString()
+    s.onerror=()=>{cleanup();showLoader(false);resolve(null);}
+    document.head.appendChild(s)
+  })
+}
+function showLoader(v){document.getElementById('loader').classList.toggle('show',v)}
+function toast(msg,type='success',dur=3000){
+  const t=document.createElement('div')
+  t.className='toast '+type
+  t.textContent=(type==='success'?'✓ ':type==='error'?'✕ ':type==='warn'?'⚠ ':'ℹ ')+msg
+  document.getElementById('toast-container').appendChild(t)
+  setTimeout(()=>{t.style.opacity='0';t.style.transform='translateX(100%)';setTimeout(()=>t.remove(),300)},dur)
+}
+
+// ═══════════════════════════════════════════════════════════
+// PENDING SYNC
+// ═══════════════════════════════════════════════════════════
+function getPending(){try{return JSON.parse(localStorage.getItem(PENDING_KEY)||'[]')}catch(e){return[]}}
+function savePending(e){localStorage.setItem(PENDING_KEY,JSON.stringify(e))}
+function addPending(entries){
+  const ex=getPending()
+  entries.forEach(e=>{
+    const i=ex.findIndex(x=>x.workerId===e.workerId&&x.month===e.month)
+    if(i>=0)ex[i]=e;else ex.push(e)
+  })
+  savePending(ex);updateSyncBanner()
+}
+function clearPending(){localStorage.removeItem(PENDING_KEY);updateSyncBanner()}
+function updateSyncBanner(){
+  const p=getPending()
+  const b=document.getElementById('sync-banner')
+  const c=document.getElementById('sync-count')
+  if(p.length>0){b.classList.add('show');if(c)c.textContent=p.length}
+  else b.classList.remove('show')
+}
+async function syncPending(){
+  const pending=getPending()
+  if(!pending.length){toast('Nothing to sync','info');return}
+  let synced=0;const failed=[]
+  for(const entry of pending){
+    const r=await api('saveSalary',{data:entry})
+    if(r&&r.success)synced++
+    else failed.push(entry)
+  }
+  if(failed.length){savePending(failed);toast(synced+' synced, '+failed.length+' still pending','warn')}
+  else{clearPending();toast('Synced '+synced+' entries');const s=await api('getSalaryLog',{month:activeMonth});if(s)salaryLogs=s.logs||[];renderTab()}
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+window.onload=async function(){
+  setupMonthPicker()
+  if(!activeMonth){const n=new Date();activeMonth=n.getFullYear()+'-'+String(n.getMonth()+1).padStart(2,'0')}
+  if(!SCRIPT_URL){showUrlSetup();return}
+  const r=await api('initSheets')
+  if(!r){showUrlSetup();return}
+  const hp=await api('hasPin')
+  if(!hp){showMsg('Cannot connect. Check URL.','err');return}
+  if(!hp.hasAdminPin)startSetupPin('admin')
+  else showPinScreen()
+  updateSyncBanner()
+}
+
+function showUrlSetup(){
+  document.getElementById('pin-screen').innerHTML=`
+    <div class="pin-wrap" style="width:420px">
+      <div class="pin-logo">Salary Management System</div>
+      <div class="pin-title" style="margin-bottom:10px">Connect to Google Sheet</div>
+      <p style="color:var(--text2);font-size:12px;margin-bottom:14px;line-height:1.6">Paste your Google Apps Script Web App URL below.</p>
+      <div class="fgrp" style="text-align:left;margin-bottom:12px">
+        <label>Apps Script Web App URL</label>
+        <input id="setup-url" placeholder="https://script.google.com/macros/s/.../exec" value="${SCRIPT_URL}"/>
+      </div>
+      <button class="btn btn-primary" style="width:100%;padding:10px" onclick="connectUrl()">Connect</button>
+    </div>`
+}
+async function connectUrl(){
+  const url=document.getElementById('setup-url').value.trim()
+  if(!url)return
+  SCRIPT_URL=url;localStorage.setItem('sms_url',url)
+  const r=await api('initSheets')
+  if(r&&r.success){const hp=await api('hasPin');if(!hp.hasAdminPin)startSetupPin('admin');else showPinScreen()}
+  else toast('Connection failed','error')
+}
+
+// ═══════════════════════════════════════════════════════════
+// PIN
+// ═══════════════════════════════════════════════════════════
+function showPinScreen(){
+  const el=document.getElementById('pin-screen')
+  const wrap=el.querySelector('.pin-wrap')
+  if(!wrap)return
+  document.getElementById('pin-title').textContent='Welcome'
+  document.getElementById('pin-sub').textContent='Select role and enter PIN'
+  document.getElementById('pin-toggle').style.display='flex'
+  pinBuf=[];confirmPin=null;updateDots()
+  document.getElementById('pin-msg').textContent=''
+}
+function startSetupPin(role){
+  setupPhase=role;pinBuf=[];confirmPin=null;updateDots()
+  document.getElementById('pin-toggle').style.display='none'
+  document.getElementById('pin-title').textContent=role==='admin'?'Set Admin PIN':'Set View PIN'
+  document.getElementById('pin-sub').textContent='Choose a 4-digit PIN'
+  if(role==='view')document.getElementById('pin-msg').innerHTML='<span style="color:var(--text2);cursor:pointer;text-decoration:underline" onclick="enterApp(\'admin\')">Skip — no View PIN</span>'
+}
+function setRole(r){
+  pinRole=r
+  document.getElementById('role-admin').classList.toggle('active',r==='admin')
+  document.getElementById('role-view').classList.toggle('active',r==='view')
+}
+function pinKey(n){if(pinBuf.length>=4)return;pinBuf.push(n);updateDots();if(pinBuf.length===4)setTimeout(submitPin,300)}
+function pinDel(){pinBuf.pop();updateDots();document.getElementById('pin-msg').textContent=''}
+function updateDots(){for(let i=0;i<4;i++)document.getElementById('d'+i).classList.toggle('filled',i<pinBuf.length)}
+function showMsg(msg,type){const el=document.getElementById('pin-msg');el.textContent=msg;el.className='pin-msg '+(type||'')}
+async function submitPin(){
+  const pin=pinBuf.join('');pinBuf=[];updateDots()
+  if(setupPhase){
+    if(!confirmPin){confirmPin=pin;document.getElementById('pin-title').textContent='Confirm PIN';document.getElementById('pin-sub').textContent='Enter same PIN again';document.getElementById('pin-msg').textContent='';return}
+    if(pin!==confirmPin){confirmPin=null;showMsg('PINs do not match','err');document.getElementById('pin-title').textContent=setupPhase==='admin'?'Set Admin PIN':'Set View PIN';return}
+    const r=await api('setPin',{pin,role:setupPhase})
+    if(r&&r.success){if(setupPhase==='admin'){setupPhase='';startSetupPin('view')}else{setupPhase='';await enterApp('admin')}}
+    return
+  }
+  const r=await api('verifyPin',{pin,role:pinRole})
+  if(r&&r.valid)await enterApp(pinRole)
+  else showMsg('Incorrect PIN','err')
+}
+async function enterApp(role){
+  accessRole=role
+  document.getElementById('pin-screen').style.display='none'
+  const app=document.getElementById('app');app.style.display='flex';app.style.flexDirection='column'
+  document.getElementById('access-badge').textContent=role==='admin'?'🔑 Admin':'👁 View'
+  document.getElementById('access-badge').className='topbar-badge'+(role==='view'?' view':'')
+  document.querySelectorAll('.admin-only').forEach(el=>el.style.display=role==='admin'?'':' none')
+  await loadAll()
+  switchTab('workers')
+}
+function lockApp(){
+  accessRole='';document.getElementById('app').style.display='none'
+  document.getElementById('pin-screen').style.display='flex'
+  pinBuf=[];confirmPin=null;setupPhase='';updateDots();showPinScreen()
+}
+
+// ═══════════════════════════════════════════════════════════
+// DATA LOAD
+// ═══════════════════════════════════════════════════════════
+async function loadAll(){
+  const r=await api('loadAll',{month:activeMonth})
+  if(!r||r.error){toast('Could not load data','error',5000);return}
+  workers=r.workers||[];advances=r.advances||[]
+  // BUG FIX: merge loaded logs with any pending local edits — don't clear tableEdits
+  salaryLogs=r.logs||[]
+  customFields=r.customFields||[];openingBalances=r.balances||{}
+  if(r.settings)Object.assign(settings,r.settings)
+  if(r.advSummary)advSummary=r.advSummary
+  if(r.archiveStatus)archiveStatus=r.archiveStatus
+  localStorage.setItem('sms_ob',JSON.stringify(openingBalances))
+  setTimeout(updateDraftBanner, 200)
+}
+async function refreshAll(){
+  const wasTab=activeTab
+  // Reload salary logs for current month — keep tableEdits intact
+  const s=await api('getSalaryLog',{month:activeMonth})
+  if(s)salaryLogs=s.logs||[]
+  const w=await api('getWorkers')
+  if(w)workers=w.workers||[]
+  const a=await api('getAdvances')
+  if(a)advances=a.advances||[]
+  activeTab=wasTab;renderTab()
+  toast('Refreshed','info',1500)
+}
+
+// ═══════════════════════════════════════════════════════════
+// MONTH PICKER
+// ═══════════════════════════════════════════════════════════
+function setupMonthPicker(){
+  const sel=document.getElementById('active-month')
+  const now=new Date()
+  for(let i=0;i<24;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1)
+    const val=d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')
+    const label=d.toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+    const opt=document.createElement('option')
+    opt.value=val;opt.textContent=label;if(i===0)opt.selected=true
+    sel.appendChild(opt)
+  }
+  activeMonth=sel.value
+}
+async function onMonthChange(){
+  activeMonth=document.getElementById('active-month').value
+  // Load salary logs for new month — clear edits since it's a different month
+  tableEdits={};rowLocks={}
+  const s=await api('getSalaryLog',{month:activeMonth})
+  if(s)salaryLogs=s.logs||[]
+  renderTab()
+  setTimeout(updateDraftBanner, 100)
+}
+
+// ═══════════════════════════════════════════════════════════
+// TABS
+// ═══════════════════════════════════════════════════════════
+function switchTab(tab){
+  if(tab==='settings'&&accessRole!=='admin')return
+  activeTab=tab
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.classList.toggle('active',t.dataset.tab===tab)
+  })
+  renderTab()
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.onclick=()=>switchTab(t.dataset.tab)
+  })
+})
+function renderTab(){
+  const c=document.getElementById('content')
+  if(activeTab==='workers')c.innerHTML=renderWorkers()
+  else if(activeTab==='salary'){
+    c.innerHTML=renderSalaryPage()
+    // Auto-restore draft if tableEdits is empty and draft exists
+    if(Object.keys(tableEdits).length===0 && hasDraft()){
+      const draft=loadDraft()
+      Object.assign(tableEdits, draft)
+    }
+    buildSalaryTable()
+    updateDraftBanner()
+  }
+  else if(activeTab==='payment'){c.innerHTML=renderPaymentPage()}
+  else if(activeTab==='overview'){c.innerHTML=renderOverviewShell();loadOverview()}
+  else if(activeTab==='advances')c.innerHTML=renderAdvancesPage()
+  else if(activeTab==='ledger')c.innerHTML=renderLedgerPage()
+  else if(activeTab==='settings')c.innerHTML=renderSettings()
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+function isActive(w){const v=w.active;if(v===false||v==='false'||v==='FALSE'||v===0||v==='0')return false;return true}
+function t1(){return settings.TYPE1_LABEL||'Labour'}
+function t2(){return settings.TYPE2_LABEL||'Employee'}
+function tLabel(type){return type==='Labour'?t1():t2()}
+function tPill(type){return `<span class="pill ${type==='Labour'?'t1':'t2'}">${tLabel(type)}</span>`}
+function pPill(mode){return `<span class="pill ${(mode||'Cash').toLowerCase()}">${mode||'Cash'}</span>`}
+function getDays(m){const[y,mo]=m.split('-').map(Number);return new Date(y,mo,0).getDate()}
+function nhd(){return parseFloat(settings.NORMAL_HRS)||8}
+function otMult(){return parseFloat(settings.OT_MULTIPLIER)||1}
+function roundoff(v){const r=parseInt(settings.ROUNDOFF)||0;if(!r)return v;return Math.round(v/r)*r}
+function hrMode(){return settings.HR_INPUT_MODE||'B'}
+function getOB(wid){
+  const s=openingBalances[wid]||JSON.parse(localStorage.getItem('sms_ob')||'{}')?.[wid]||{}
+  return{advOs:parseFloat(s.advOs)||0,carryFwd:parseFloat(s.carryFwd)||0}
+}
+function mcf(){return customFields.filter(f=>f.applies==='monthly')}
+function wcf(){return customFields.filter(f=>f.applies==='worker')}
+function getDeptField(){return customFields.find(f=>f.applies==='worker'&&f.name.toLowerCase().includes('dept'))}
+function getNewAdv(wid){
+  return advances.filter(a=>a.workerId===wid&&(a.date||''). substring(0,7)===activeMonth)
+    .reduce((s,a)=>s+parseFloat(a.amount||0),0)
+}
+function fmtMoney(v){return '₹'+Math.round(parseFloat(v)||0).toLocaleString('en-IN')}
+
+// ═══════════════════════════════════════════════════════════
+// CORE CALCULATION — DO NOT CHANGE
+// HR Rate = Salary / Days in Month / 8
+// Salary  = W.Days × HR Rate × 8
+// OT      = OT Hrs × HR Rate
+// Total   = Salary + OT
+// Holiday = display only, NOT used
+// ═══════════════════════════════════════════════════════════
+function calcWages(w,entry,daysInMonth){
+  const isT1=w.type==='Labour'
+  const hrRate=w.salary/daysInMonth/8
+  const perDay=hrRate*8
+  const wdays=parseFloat(entry.wdays||0)
+  let salaryAmt=0,otAmt=0,otHrs=0
+  if(isT1){
+    const mode=entry.hrMode||(settings.HR_INPUT_MODE||'B')
+    if(mode==='A'){
+      const totalClock=parseFloat(entry.totalHrsWorked||0)
+      const payable=totalClock-(wdays*0.5)
+      otHrs=Math.max(0,payable-(wdays*8))
+    } else {
+      otHrs=parseFloat(entry.otHrsEntered||0)
+    }
+    salaryAmt=wdays*perDay
+    otAmt=otHrs*hrRate
+  } else {
+    salaryAmt=wdays*perDay
+  }
+  const totalPayable=salaryAmt+otAmt
+  const advDed=parseFloat(entry.advDeducted||0)
+  const cane=parseFloat(entry.cane||0)
+  const prevAdv=parseFloat(entry.prevAdv||0)
+  const newAdv=parseFloat(entry.newAdv||0)
+  const carryFwd=parseFloat(entry.carryForward||0)
+  const customAdd=parseFloat(entry.customAdditions||0)
+  const customDed=parseFloat(entry.customDeductions||0)
+  const advOs=prevAdv+newAdv-advDed
+  const rawWages=totalPayable-advDed+carryFwd-cane+customAdd-customDed
+  const wagesPayable=roundoff(rawWages)
+  // ESI calculated separately — passed in entry if worker is ESI eligible
+  const esiRate = parseFloat(settings.ESI_RATE)||0.0075
+  const esiBase = salaryAmt  // ESI on salary only, no OT, no deductions
+  const esiAmount = entry.esiEligible ? roundoff(esiBase * esiRate) : 0
+  const netPayable = roundoff(wagesPayable - esiAmount)
+  return{hrRate,perDay,salaryAmt,otAmt,otHrs,totalPayable,advOs,wagesPayable,
+    esiAmount,netPayable,
+    totalHrsWorked:isT1?(wdays*8+otHrs):0}
+}
+
+// Build full data object for saving — fetches prevAdv + carryFwd from server if needed
+async function buildSaveData(w,te,existingLog,daysInMonth){
+  const isT1=w.type==='Labour'
+  let prevAdv,carryFwd
+  if(existingLog){
+    prevAdv=parseFloat(existingLog.prevAdv||0)
+    carryFwd=parseFloat(existingLog.carryForward||0)
+  } else {
+    const ob=getOB(w.id)
+    const cr=await api('getLastCarryForward',{workerId:w.id,beforeMonth:activeMonth})
+    if(cr&&cr.bal!==0){prevAdv=ob.advOs;carryFwd=cr.bal}
+    else{prevAdv=ob.advOs;carryFwd=ob.carryFwd}
+  }
+  const newAdv=getNewAdv(w.id)
+  const otHrsEntered=parseFloat(te.otHrs||0)
+  const entry={
+    wdays:parseFloat(te.wdays||0),
+    otHrsEntered:isT1?otHrsEntered:0,
+    totalHrsWorked:isT1?(parseFloat(te.wdays||0)*8+otHrsEntered):0,
+    advDeducted:parseFloat(te.advDed||0),
+    cane:parseFloat(te.cane||0),
+    prevAdv,newAdv,carryForward:carryFwd,
+    customAdditions:0,customDeductions:0,
+    esiEligible:w.esiEligible||false
+  }
+  const mFields=mcf();let customAdd=0,customDed=0
+  mFields.forEach(f=>{
+    const val=parseFloat((te.customData&&te.customData[f.id])||0)
+    if(f.affects==='add')customAdd+=val
+    if(f.affects==='deduct')customDed+=val
+  })
+  entry.customAdditions=customAdd;entry.customDeductions=customDed
+  const calc=calcWages(w,entry,daysInMonth)
+  return{
+    id:existingLog?.id||null,
+    workerId:w.id,month:activeMonth,
+    wdays:entry.wdays,holiday:parseFloat(te.holiday||0),
+    otHrs:isT1?calc.otHrs:0,totalHrsWorked:calc.totalHrsWorked,
+    salaryAmt:calc.salaryAmt,otAmt:calc.otAmt,totalPayable:calc.totalPayable,
+    prevAdv,newAdv,advDeducted:entry.advDeducted,advOs:calc.advOs,
+    carryForward:carryFwd,cane:entry.cane,
+    customAdditions:customAdd,customDeductions:customDed,
+    wagesPayable:calc.wagesPayable,
+    esiAmount:calc.esiAmount||0,
+    netPayable:calc.netPayable||calc.wagesPayable,
+    actualPaid:existingLog?.actualPaid||'',
+    paymentMode:existingLog?.paymentMode||w.paymentMode||'Cash',
+    cashAmt:existingLog?.cashAmt||0,bankAmt:existingLog?.bankAmt||0,
+    bal:existingLog?.bal||'',
+    finalized:existingLog?.finalized||false,
+    skipped:te.skipped||false,
+    customData:te.customData||{}
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// WORKERS TAB
+// ═══════════════════════════════════════════════════════════
+function renderWorkers(){
+  const active=workers.filter(isActive)
+  const inactive=workers.filter(w=>!isActive(w))
+  const wCF=wcf()
+  return`
+    <div class="sec-hdr">
+      <div class="sec-title">Workers <span class="badge">${active.length} active</span></div>
+      ${accessRole==='admin'?`<button class="btn btn-primary btn-sm" onclick="openWorkerModal()">+ Add Worker</button>`:''}
+    </div>
+    ${accessRole==='view'?'<div class="view-note">👁 View Only</div>':''}
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr>
+        <th>#</th><th>Name</th><th>Type</th><th>Salary</th><th>Per Day</th><th>Per HR</th>
+        <th>Adv Limit</th><th>ESI</th><th>Payment</th>
+        ${wCF.map(f=>`<th>${f.name}</th>`).join('')}
+        ${accessRole==='admin'?'<th>Actions</th>':''}
+      </tr></thead>
+      <tbody>
+        ${active.map((w,i)=>{
+          const days=getDays(activeMonth)
+          const pd=(w.salary/days)
+          const ph=pd/8
+          return`<tr>
+            <td class="text3 mono">${i+1}</td>
+            <td><strong>${w.name}</strong></td>
+            <td>${tPill(w.type)}</td>
+            <td class="mono">${fmtMoney(w.salary)}</td>
+            <td class="mono text2">₹${pd.toFixed(2)}</td>
+            <td class="mono text2">₹${ph.toFixed(2)}</td>
+            <td class="mono text2">${w.advanceLimit?fmtMoney(w.advanceLimit):'—'}</td>
+            <td>${w.esiEligible?'<span class="pill" style="background:#e0f0ff;color:#0a4a8a;border:1px solid #a0c8e8">✓ ESI</span>':'—'}</td>
+            <td>${pPill(w.paymentMode)}</td>
+            ${wCF.map(f=>`<td class="text2">${(w.customData&&w.customData[f.id])||'—'}</td>`).join('')}
+            ${accessRole==='admin'?`<td>
+              <button class="btn btn-outline btn-xs" onclick="openWorkerModal('${w.id}')">Edit</button>
+              <button class="btn btn-danger btn-xs" style="margin-left:4px" onclick="deactivateWorker('${w.id}')">Remove</button>
+            </td>`:''}
+          </tr>`
+        }).join('')}
+        ${inactive.length?`<tr><td colspan="99" style="padding:10px 8px;font-size:12px;color:var(--text3);font-weight:600">Inactive (${inactive.length})</td></tr>`:''}
+        ${inactive.map(w=>`<tr style="opacity:.4">
+          <td></td><td>${w.name}</td><td>${tPill(w.type)}</td>
+          <td colspan="5"></td>
+          ${wCF.map(()=>'<td></td>').join('')}
+          ${accessRole==='admin'?`<td><button class="btn btn-outline btn-xs" onclick="restoreWorker('${w.id}')">Restore</button></td>`:''}
+        </tr>`).join('')}
+      </tbody>
+    </table></div>`
+}
+
+// ═══════════════════════════════════════════════════════════
+// SALARY TAB — TABLE VIEW WITH LIVE CALC
+// ═══════════════════════════════════════════════════════════
+function renderSalaryPage(){
+  const month=document.getElementById('active-month').selectedOptions[0].text
+  return`
+    <div class="sec-hdr">
+      <div class="sec-title">Process Salary — ${month}</div>
+    </div>
+    <div class="filter-bar">
+      <label>Type:</label>
+      <select id="sf-type" onchange="buildSalaryTable()">
+        <option value="">All</option>
+        <option value="Labour">${t1()}</option>
+        <option value="Employee">${t2()}</option>
+      </select>
+      <div class="fsep"></div>
+      <label>Status:</label>
+      <select id="sf-status" onchange="buildSalaryTable()">
+        <option value="">All</option>
+        <option value="new">Not Started</option>
+        <option value="saved">Saved</option>
+        <option value="skipped">Skipped</option>
+      </select>
+      <div class="fsep"></div>
+      <input type="text" placeholder="🔍 Search..." id="sf-search" oninput="buildSalaryTable()" style="min-width:120px"/>
+    </div>
+    ${accessRole==='view'?'<div class="view-note">👁 View Only</div>':''}
+    ${accessRole==='admin'?`
+    <div class="batch-bar">
+      <span class="text2" style="font-size:12px">Edited: <strong id="edit-count">0</strong> workers</span>
+      <span id="draft-autosave-indicator" style="font-size:11px;color:var(--green);display:none">✓ Draft auto-saved</span>
+      <button class="btn btn-outline btn-sm" onclick="resetEdits()">↩ Reset</button>
+      <button class="btn btn-primary" id="save-all-btn" onclick="saveAllSalary()">💾 Save All</button>
+    </div>`:''}
+    <div class="salary-scroll-wrap" id="salary-scroll-wrap">
+      <table class="stbl" style="min-width:1200px;width:100%">
+        <thead id="stbl-head"></thead>
+        <tbody id="stbl-body"></tbody>
+      </table>
+    </div>`
+}
+
+function buildSalaryTable(){
+  const thead=document.getElementById('stbl-head')
+  const tbody=document.getElementById('stbl-body')
+  if(!thead||!tbody)return
+
+  const typeF=(document.getElementById('sf-type')||{}).value||''
+  const statusF=(document.getElementById('sf-status')||{}).value||''
+  const search=((document.getElementById('sf-search')||{}).value||'').toLowerCase()
+  const isAdmin=accessRole==='admin'
+  const daysInMonth=getDays(activeMonth)
+  const mFields=mcf()
+  const mode=hrMode()
+
+  let active=workers.filter(isActive)
+  active.sort((a,b)=>{if(a.type===b.type)return a.name.localeCompare(b.name);return a.type==='Labour'?-1:1})
+  if(typeF)active=active.filter(w=>w.type===typeF)
+  if(search)active=active.filter(w=>w.name.toLowerCase().includes(search))
+  if(statusF)active=active.filter(w=>{
+    const l=salaryLogs.find(x=>x.workerId===w.id)
+    if(statusF==='saved')return l&&l.totalPayable&&!l.skipped
+    if(statusF==='skipped')return l&&l.skipped
+    if(statusF==='new')return !l||!l.totalPayable
+    return true
+  })
+
+  const showT1Col=!typeF||typeF==='Labour'
+
+  thead.innerHTML=`<tr>
+    <th class="lft">#</th>
+    <th class="lft">Name</th>
+    <th>Per Day</th><th>Per HR</th>
+    <th>W.Days</th>
+    <th>Holiday<br/><span style="font-size:9px;font-weight:400;color:var(--text3)">(display)</span></th>
+    ${showT1Col?`<th>${mode==='A'?'Total Clock Hrs':'OT Hrs'}<br/><span style="font-size:9px;font-weight:400;color:var(--text3)">${mode==='A'?'(lunch auto-ded)':'(beyond 8hr/day)'}</span></th>`:''}
+    <th>Salary Amt</th>
+    <th>OT Amt</th>
+    <th>Total Payable</th>
+    <th>Prev Adv O/S</th>
+    <th>New Adv</th>
+    <th>(-) Adv</th>
+    <th>Adv O/S</th>
+    <th>Carry Fwd<br/><span style="font-size:9px;font-weight:400;color:var(--text3)">(+add/−ded)</span></th>
+    <th>Cane</th>
+    ${mFields.map(f=>`<th>${f.name}${f.affects==='add'?' (+)':f.affects==='deduct'?' (−)':''}</th>`).join('')}
+    <th>Wages Payable</th>
+    <th>ESI (0.75%)</th>
+    <th>Net Payable</th>
+    <th>Status</th>
+    ${isAdmin?'<th>Actions</th>':''}
+  </tr>`
+
+  if(!active.length){
+    tbody.innerHTML='<tr><td colspan="99" class="empty">No workers match filter</td></tr>'
+    return
+  }
+
+  tbody.innerHTML=active.map((w,idx)=>{
+    const log=salaryLogs.find(l=>l.workerId===w.id)||null
+    const isT1=w.type==='Labour'
+    const isSaved=!!(log&&log.totalPayable&&!log.skipped&&!log.finalized)
+    const isFinalized=!!(log&&log.finalized)
+    const isSkipped=!!(log&&log.skipped)
+    const isPendingSync=getPending().some(p=>p.workerId===w.id&&p.month===activeMonth)
+    const isLocked=rowLocks[w.id]&&!tableEdits[w.id]
+
+    // BUG FIX: Always restore saved values — prefer tableEdits over log
+    const te=tableEdits[w.id]||{}
+    // Restore from log if no active edit
+    const wdays   = te.wdays   !== undefined ? te.wdays   : (log ? log.wdays   : '')
+    const holiday  = te.holiday  !== undefined ? te.holiday  : (log ? log.holiday  : 0)
+    const otHrsVal = te.otHrs   !== undefined ? te.otHrs   : (log ? parseFloat(log.otHrs||0)    : '')
+    const totalHrs = te.totalHrs !== undefined ? te.totalHrs : (log ? parseFloat(log.totalHrsWorked||0) : '')
+    const advDed   = te.advDed  !== undefined ? te.advDed  : (log ? log.advDeducted : '')
+    const cane     = te.cane    !== undefined ? te.cane    : (log ? log.cane    : 0)
+
+    // Carry forward and prevAdv from saved log
+    const prevAdv  = log ? parseFloat(log.prevAdv||0)      : getOB(w.id).advOs
+    const carryFwd = log ? parseFloat(log.carryForward||0) : getOB(w.id).carryFwd
+    const newAdv   = getNewAdv(w.id)
+
+    // Live calc
+    const entry={
+      wdays:parseFloat(wdays)||0,
+      otHrsEntered:isT1?parseFloat(otHrsVal)||0:0,
+      totalHrsWorked:isT1?parseFloat(mode==='A'?totalHrs:0)||0:0,
+      advDeducted:parseFloat(advDed)||0,cane:parseFloat(cane)||0,
+      prevAdv,newAdv,carryForward:carryFwd,customAdditions:0,customDeductions:0
+    }
+    mFields.forEach(f=>{
+      const v=parseFloat((te.customData&&te.customData[f.id])||(log&&log.customData?log.customData[f.id]:0))||0
+      if(f.affects==='add')entry.customAdditions+=v
+      if(f.affects==='deduct')entry.customDeductions+=v
+    })
+    const calc=calcWages(w,entry,daysInMonth)
+
+    // Row state
+    const hasEdits=Object.keys(te).length>0
+    const hasUnlocked=editUnlocked.has(w.id)
+    const editable=isAdmin&&!isFinalized&&(!isSaved||hasEdits||hasUnlocked)
+    const showLock=isAdmin&&isSaved&&!hasEdits&&!hasUnlocked
+
+    let rowClass=isPendingSync?'edited':isFinalized?'finalized':isSkipped?'skipped':isSaved?'saved':hasEdits?'edited':''
+
+    // Status
+    let statusBadge=isPendingSync?'<span class="st st-sync">⏳ Sync</span>'
+      :isFinalized?'<span class="st st-paid">✓ Paid</span>'
+      :isSkipped?'<span class="st st-skip">⊘ Skip</span>'
+      :isSaved?'<span class="st st-saved">● Saved</span>'
+      :hasEdits?'<span class="st st-edit">✎ Edited</span>'
+      :'<span class="st st-new">— New</span>'
+
+    // Input helper
+    const inp=(field,val,ph,extra='')=>{
+      if(!editable)return`<span class="mono" style="font-size:12px">${val!==''&&val!==undefined?val:'—'}</span>`
+      const changed=te[field]!==undefined
+      return`<input type="number" class="ci ${changed?'changed':''}" id="ci-${field}-${w.id}"
+        value="${val}" placeholder="${ph}" step="${field==='totalHrs'||field==='otHrs'?'0.5':'1'}"
+        oninput="onCell('${w.id}','${field}',this.value,${daysInMonth})"
+        onchange="onCell('${w.id}','${field}',this.value,${daysInMonth})"
+        ${showLock?'readonly':''} ${extra}/>`
+    }
+
+    // Actions
+    let actions=''
+    if(isAdmin){
+      if(isFinalized){
+        actions=`<button class="btn btn-danger btn-xs" onclick="unlockRow('${w.id}')">🔓 Unlock</button>`
+      } else if(isSaved&&!hasEdits&&!hasUnlocked){
+        actions=`<button class="btn btn-primary btn-xs" onclick="editRow('${w.id}')" title="Click to unlock and edit this saved row">✏️ Edit</button>
+          <button class="btn btn-warn btn-xs" onclick="skipRow('${w.id}')">⊘ Skip</button>`
+      } else {
+        actions=`<button class="btn btn-warn btn-xs" onclick="skipRow('${w.id}')">⊘ Skip</button>`
+      }
+    }
+
+    const cfVals=mFields.map(f=>{
+      const fval=(te.customData&&te.customData[f.id]!==undefined)?te.customData[f.id]:(log&&log.customData?log.customData[f.id]||'':'')
+      if(!editable)return`<td><span class="mono" style="font-size:12px">${fval||'—'}</span></td>`
+      return`<td><input type="${f.type==='number'?'number':'text'}" class="ci" style="width:80px"
+        id="ci-cf-${f.id}-${w.id}" value="${fval}"
+        onchange="onCF('${w.id}','${f.id}',this.value,${daysInMonth})"/></td>`
+    })
+
+    return`<tr class="${rowClass}" id="tr-${w.id}">
+      <td class="lft text3 mono" style="font-size:11px">${idx+1}</td>
+      <td class="lft"><strong>${w.name}</strong> ${tPill(w.type)}</td>
+      <td class="mono text2">₹${calc.perDay.toFixed(2)}</td>
+      <td class="mono text2">₹${calc.hrRate.toFixed(4)}</td>
+      <td>${inp('wdays',wdays,daysInMonth)}</td>
+      <td>${inp('holiday',holiday,0)}</td>
+      ${showT1Col?`<td>${isT1?inp(mode==='A'?'totalHrs':'otHrs',mode==='A'?totalHrs:otHrsVal,0):'<span class="text3">—</span>'}</td>`:''}
+      <td class="mono">${fmtMoney(calc.salaryAmt)}</td>
+      <td class="mono ${calc.otAmt>0?'':' text3'}">${calc.otAmt>0?fmtMoney(calc.otAmt):'—'}</td>
+      <td class="mono" style="font-weight:600">${fmtMoney(calc.totalPayable)}</td>
+      <td class="mono text2">${fmtMoney(prevAdv)}</td>
+      <td class="mono text2">${newAdv>0?fmtMoney(newAdv):'—'}</td>
+      <td>${inp('advDed',advDed,0)}</td>
+      <td class="mono ${calc.advOs>0?'text2':' text3'}">${fmtMoney(calc.advOs)}</td>
+      <td class="mono" style="${carryFwd>0?'color:var(--green)':carryFwd<0?'color:var(--orange)':'color:var(--text3)'}">${carryFwd>0?'+ ₹':carryFwd<0?'− ₹':''}${carryFwd!==0?Math.abs(Math.round(carryFwd)):'—'}</td>
+      <td>${inp('cane',cane,0)}</td>
+      ${cfVals.join('')}
+      <td><span class="net-pay${calc.wagesPayable<=0?' zero':''}">${fmtMoney(calc.wagesPayable)}</span></td>
+      <td class="mono text2">${w.esiEligible&&calc.esiAmount>0?'− '+fmtMoney(calc.esiAmount):'—'}</td>
+      <td><span class="net-pay${calc.netPayable<=0?' zero':''}" id="np-${w.id}">${fmtMoney(calc.netPayable||calc.wagesPayable)}</span></td>
+      <td>${statusBadge}</td>
+      ${isAdmin?`<td><div style="display:flex;gap:4px">${actions}</div></td>`:''}
+    </tr>`
+  }).join('')
+}
+
+function onCell(wid,field,val,daysInMonth){
+  if(!tableEdits[wid])tableEdits[wid]={}
+  tableEdits[wid][field]=val
+  recalcRow(wid,daysInMonth)
+  updateEditCount()
+  const el=document.getElementById('ci-'+field+'-'+wid)
+  if(el)el.classList.add('changed')
+  saveDraft()  // auto-save on every change
+}
+function onCF(wid,fid,val,daysInMonth){
+  if(!tableEdits[wid])tableEdits[wid]={}
+  if(!tableEdits[wid].customData)tableEdits[wid].customData={}
+  tableEdits[wid].customData[fid]=val
+  recalcRow(wid,daysInMonth)
+  updateEditCount()
+  saveDraft()  // auto-save on every change
+}
+function recalcRow(wid,daysInMonth){
+  const w=workers.find(x=>x.id===wid);if(!w)return
+  const log=salaryLogs.find(l=>l.workerId===wid)||null
+  const te=tableEdits[wid]||{}
+  const isT1=w.type==='Labour'
+  const mode=hrMode()
+  const wdays   =parseFloat(te.wdays!==undefined?te.wdays:(log?log.wdays:0))||0
+  const otHrsVal=parseFloat(te.otHrs!==undefined?te.otHrs:(log?log.otHrs:0))||0
+  const totalHrs=parseFloat(te.totalHrs!==undefined?te.totalHrs:(log?log.totalHrsWorked:0))||0
+  const advDed  =parseFloat(te.advDed!==undefined?te.advDed:(log?log.advDeducted:0))||0
+  const cane    =parseFloat(te.cane!==undefined?te.cane:(log?log.cane:0))||0
+  const prevAdv =log?parseFloat(log.prevAdv||0):getOB(wid).advOs
+  const carryFwd=log?parseFloat(log.carryForward||0):getOB(wid).carryFwd
+  const newAdv  =getNewAdv(wid)
+  const mFields=mcf();let customAdd=0,customDed=0
+  mFields.forEach(f=>{
+    const v=parseFloat((te.customData&&te.customData[f.id])||(log&&log.customData?log.customData[f.id]:0))||0
+    if(f.affects==='add')customAdd+=v
+    if(f.affects==='deduct')customDed+=v
+  })
+  const entry={wdays,otHrsEntered:isT1?otHrsVal:0,totalHrsWorked:isT1&&mode==='A'?totalHrs:0,
+    advDeducted:advDed,cane,prevAdv,newAdv,carryForward:carryFwd,customAdditions:customAdd,customDeductions:customDed}
+  const calc=calcWages(w,entry,daysInMonth)
+  const el=document.getElementById('np-'+wid)
+  if(el){el.textContent=fmtMoney(calc.wagesPayable);el.className='net-pay'+(calc.wagesPayable<=0?' zero':'')}
+}
+function updateEditCount(){const el=document.getElementById('edit-count');if(el)el.textContent=Object.keys(tableEdits).length}
+function resetEdits(){tableEdits={};rowLocks={};editUnlocked.clear();buildSalaryTable();updateEditCount()}
+function editRow(wid){
+  if(!confirm('Unlock this saved entry for editing?'))return
+  editUnlocked.add(wid)
+  buildSalaryTable()
+}
+async function unlockRow(wid){
+  if(!confirm('ADMIN: Unlock this finalized entry? Payment record will be cleared.'))return
+  const log=salaryLogs.find(l=>l.workerId===wid);if(!log)return
+  const r=await api('unlockFinalized',{logId:log.id,month:activeMonth})
+  if(r&&r.success){log.finalized=false;log.actualPaid='';log.bal='';toast('Unlocked','warn');buildSalaryTable()}
+}
+function skipRow(wid){
+  if(!tableEdits[wid])tableEdits[wid]={}
+  const log=salaryLogs.find(l=>l.workerId===wid)
+  const cur=tableEdits[wid].skipped!==undefined?tableEdits[wid].skipped:(log?log.skipped:false)
+  tableEdits[wid].skipped=!cur
+  updateEditCount();buildSalaryTable()
+}
+
+async function saveAllSalary(){
+  const daysInMonth=getDays(activeMonth)
+  const edited=workers.filter(isActive).filter(w=>tableEdits[w.id]!==undefined)
+  if(!edited.length){toast('No changes to save','info');return}
+  const btn=document.getElementById('save-all-btn')
+  if(btn){btn.textContent='⏳ Saving...';btn.disabled=true}
+  let saved=0;const failed=[]
+  for(const w of edited){
+    const log=salaryLogs.find(l=>l.workerId===w.id)||null
+    const te=tableEdits[w.id]
+    try{
+      const data=await buildSaveData(w,te,log,daysInMonth)
+      const r=await api('saveSalary',{data})
+      if(r&&r.success){
+        saved++
+        // NOTE: Advance deduction is stored in ADV_DEDUCTED col of salary sheet
+        // Adv_Deductions sheet is only for manual advance records — not salary deductions
+        // getWorkerAdvBal reads from salary sheets directly to avoid duplicates
+      } else {
+        failed.push({...data,workerId:w.id})
+      }
+    }catch(e){failed.push({workerId:w.id,month:activeMonth})}
+  }
+  if(btn){btn.textContent='💾 Save All';btn.disabled=false}
+  if(failed.length){addPending(failed);toast(saved+' saved, '+failed.length+' saved locally','warn',5000)}
+  else toast('Saved '+saved+' entries')
+  // Reload salary logs — KEEP tableEdits to show what was entered
+  const s=await api('getSalaryLog',{month:activeMonth})
+  if(s){salaryLogs=s.logs||[]}
+  tableEdits={}  // Clear only after reload
+  clearDraft()   // Clear draft after successful save
+  buildSalaryTable();updateEditCount()
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAYMENT TAB
+// ═══════════════════════════════════════════════════════════
+function renderPaymentPage(){
+  const month=document.getElementById('active-month').selectedOptions[0].text
+  const daysInMonth=getDays(activeMonth)
+  const active=workers.filter(isActive)
+  active.sort((a,b)=>{if(a.type===b.type)return a.name.localeCompare(b.name);return a.type==='Labour'?-1:1})
+  // HOW PAYMENT TAB WORKS:
+  // Step 1 → Go to "Process Salary" tab → Enter W.Days, OT Hrs, Adv Ded → Save All
+  // Step 2 → Come here to "Payment" tab → See wages payable per worker → Click "Pay" → Enter actual cash paid
+  // Step 3 → BAL = Actual Paid - Wages Payable → becomes next month's carry forward
+
+  const saved=active.filter(w=>{const l=salaryLogs.find(x=>x.workerId===w.id);return l&&l.totalPayable&&!l.skipped})
+  const unsaved=active.filter(w=>{const l=salaryLogs.find(x=>x.workerId===w.id);return !l||!l.totalPayable})
+  const skipped=active.filter(w=>{const l=salaryLogs.find(x=>x.workerId===w.id);return l&&l.skipped})
+
+  const totalPayable=saved.reduce((s,w)=>{const l=salaryLogs.find(x=>x.workerId===w.id);return s+parseFloat(l?.wagesPayable||0)},0)
+  const totalPaid=saved.filter(w=>{const l=salaryLogs.find(x=>x.workerId===w.id);return l?.finalized}).reduce((s,w)=>{const l=salaryLogs.find(x=>x.workerId===w.id);return s+parseFloat(l?.actualPaid||0)},0)
+  const pendingPayment=saved.filter(w=>{const l=salaryLogs.find(x=>x.workerId===w.id);return !l?.finalized})
+
+  return`
+    <div class="sec-hdr">
+      <div class="sec-title">Payment — ${month}</div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="ov-grid">
+      <div class="ov-card">
+        <div class="ov-lbl">Total Wages Payable</div>
+        <div class="ov-val">${fmtMoney(totalPayable)}</div>
+        <div class="ov-sub">${saved.length} workers processed</div>
+      </div>
+      <div class="ov-card green">
+        <div class="ov-lbl">Paid</div>
+        <div class="ov-val">${fmtMoney(totalPaid)}</div>
+        <div class="ov-sub">${saved.length-pendingPayment.length} workers paid</div>
+      </div>
+      <div class="ov-card orange">
+        <div class="ov-lbl">Pending Payment</div>
+        <div class="ov-val">${fmtMoney(totalPayable-totalPaid)}</div>
+        <div class="ov-sub">${pendingPayment.length} workers awaiting</div>
+      </div>
+      <div class="ov-card ${unsaved.length>0?'red':''}">
+        <div class="ov-lbl">Not Processed</div>
+        <div class="ov-val">${unsaved.length}</div>
+        <div class="ov-sub">Go to Process Salary tab first</div>
+      </div>
+    </div>
+
+    ${unsaved.length?`<div class="alert alert-warn" style="margin-bottom:12px">
+      ⚠️ ${unsaved.length} worker(s) not yet processed: ${unsaved.map(w=>w.name).join(', ')}. 
+      Go to <a href="#" onclick="switchTab('salary')" style="color:var(--accent)">Process Salary</a> tab first.
+    </div>`:''} 
+
+    <!-- Payment table -->
+    <div class="sec-title" style="margin-bottom:10px">Salary Payment Status</div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead><tr>
+          <th>#</th><th>Name</th><th>Type</th>
+          <th class="c">W.Days</th><th class="c">OT Hrs</th>
+          <th class="c">Salary Amt</th><th class="c">OT Amt</th>
+          <th class="c">Total Payable</th>
+          <th class="c">Adv O/S</th><th class="c">Carry Fwd</th><th class="c">Cane</th>
+          <th class="c" style="color:var(--accent)">Wages Payable</th>
+          <th class="c" style="color:var(--red)">ESI Ded</th>
+          <th class="c" style="color:var(--green);font-weight:700">Net Payable</th>
+          <th class="c">Actual Paid</th><th class="c">Mode</th>
+          <th class="c">BAL</th><th class="c">Status</th>
+          ${accessRole==='admin'?'<th class="c">Action</th>':''}
+        </tr></thead>
+        <tbody>
+          ${saved.length===0?`<tr><td colspan="99" class="empty">No salary records saved yet for ${month}.<br/>Go to Process Salary tab to enter data.</td></tr>`:''}
+          ${saved.map((w,i)=>{
+            const l=salaryLogs.find(x=>x.workerId===w.id)
+            if(!l)return''
+            const bal=parseFloat(l.bal||0)
+            const rowClass=l.finalized?'pay-row-paid':'pay-row-unpaid'
+            const cfDisp=carryFwdDisplay(parseFloat(l.carryForward||0))
+            return`<tr class="${rowClass}">
+              <td class="text3 mono">${i+1}</td>
+              <td><strong>${w.name}</strong></td>
+              <td>${tPill(w.type)}</td>
+              <td class="c mono">${l.wdays}</td>
+              <td class="c mono">${parseFloat(l.otHrs||0).toFixed(1)}</td>
+              <td class="c mono">₹${Math.round(l.salaryAmt||0).toLocaleString('en-IN')}</td>
+              <td class="c mono">${l.otAmt>0?'₹'+Math.round(l.otAmt).toLocaleString('en-IN'):'—'}</td>
+              <td class="c mono" style="font-weight:600">₹${Math.round(l.totalPayable||0).toLocaleString('en-IN')}</td>
+              <td class="c mono text2">₹${Math.round(l.advOs||0).toLocaleString('en-IN')}</td>
+              <td class="c mono" style="${cfDisp.color}">${cfDisp.text}</td>
+              <td class="c mono text2">${parseFloat(l.cane||0)>0?'₹'+Math.round(l.cane):'—'}</td>
+              <td class="c mono" style="font-weight:700;color:var(--accent);font-size:14px">₹${Math.round(l.wagesPayable||0).toLocaleString('en-IN')}</td>
+              <td class="c mono" style="color:var(--red)">${parseFloat(l.esiAmount||0)>0?'− ₹'+Math.round(l.esiAmount):'—'}</td>
+              <td class="c mono" style="font-weight:700;color:var(--green);font-size:14px">₹${Math.round(l.netPayable||l.wagesPayable||0).toLocaleString('en-IN')}</td>
+              <td class="c mono">${l.actualPaid?'₹'+Math.round(l.actualPaid).toLocaleString('en-IN'):'—'}</td>
+              <td class="c">${l.actualPaid?pPill(l.paymentMode):'—'}</td>
+              <td class="c mono" style="${bal>0?'color:var(--orange)':bal<0?'color:var(--green)':'color:var(--text3)'}">${l.bal!==''&&l.bal!==undefined?Math.round(bal):'—'}</td>
+              <td class="c">${l.finalized?'<span class="st st-paid">✓ Paid</span>':'<span class="st st-new">Pending</span>'}</td>
+              ${accessRole==='admin'?`<td class="c">${!l.finalized
+                ?`<button class="btn btn-primary btn-xs" onclick="openPayModal('${w.id}')">💳 Pay</button>`
+                :`<button class="btn btn-outline btn-xs" onclick="unlockPayment('${w.id}')">🔓</button>`
+              }</td>`:''} 
+            </tr>`
+          }).join('')}
+
+          <!-- Totals row -->
+          ${saved.length?`<tr style="background:var(--surf2);font-weight:700">
+            <td colspan="7" style="text-align:right;padding-right:10px">TOTAL</td>
+            <td class="c mono">₹${Math.round(saved.reduce((s,w)=>{const l=salaryLogs.find(x=>x.workerId===w.id);return s+parseFloat(l?.totalPayable||0)},0)).toLocaleString('en-IN')}</td>
+            <td></td><td></td><td></td>
+            <td class="c mono" style="color:var(--accent)">₹${Math.round(totalPayable).toLocaleString('en-IN')}</td>
+            <td class="c mono">₹${Math.round(totalPaid).toLocaleString('en-IN')}</td>
+            <td></td><td></td><td></td>${accessRole==='admin'?'<td></td>':''}
+          </tr>`:''}
+
+          <!-- Skipped workers -->
+          ${skipped.length?`<tr><td colspan="99" style="padding:8px;font-size:12px;color:var(--text3);font-weight:600">Skipped this month (${skipped.length}): ${skipped.map(w=>w.name).join(', ')}</td></tr>`:''}
+        </tbody>
+      </table>
+    </div>`
+}
+
+function carryFwdDisplay(cf){
+  if(cf===0)return{text:'—',color:'color:var(--text3)'}
+  if(cf>0)return{text:'+₹'+Math.abs(Math.round(cf)).toLocaleString('en-IN'),color:'color:var(--green)'}
+  return{text:'−₹'+Math.abs(Math.round(cf)).toLocaleString('en-IN'),color:'color:var(--orange)'}
+}
+
+function openPayModal(wid){
+  const log=salaryLogs.find(l=>l.workerId===wid);if(!log)return
+  const w=workers.find(x=>x.id===wid);if(!w)return
+  document.getElementById('pay-title').textContent='Enter Payment — '+w.name
+  document.getElementById('pay-log-id').value=log.id
+  document.getElementById('pay-worker-id').value=wid
+  document.getElementById('pay-actual').value=log.actualPaid||Math.round(log.wagesPayable)
+  document.getElementById('pay-mode').value=log.paymentMode||w.paymentMode||'Cash'
+  document.getElementById('pay-cash').value=log.cashAmt||''
+  document.getElementById('pay-bank').value=log.bankAmt||''
+  document.getElementById('pay-diff').innerHTML=''
+  document.getElementById('pay-summary').innerHTML=`
+    <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+      <span class="text2">Wages Payable</span>
+      <span class="mono" style="font-weight:700;font-size:15px;color:var(--accent)">${fmtMoney(log.wagesPayable)}</span>
+    </div>
+    <div style="display:flex;gap:16px;font-size:12px;color:var(--text2)">
+      <span>Adv O/S: ${fmtMoney(log.advOs)}</span>
+      <span>Carry Fwd: ${carryFwdDisplay(parseFloat(log.carryForward||0)).text}</span>
+    </div>
+    ${log.esiAmount>0?`<div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+      <span class="text2">ESI Deduction (0.75%)</span>
+      <span class="mono" style="color:var(--red)">− ${fmtMoney(log.esiAmount)}</span>
+    </div>
+    <div style="display:flex;justify-content:space-between;margin-top:4px">
+      <span class="text2">Net Payable (after ESI)</span>
+      <span class="mono" style="font-weight:700;font-size:15px;color:var(--green)">${fmtMoney(log.netPayable||log.wagesPayable)}</span>
+    </div>`:''}
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">Difference = Actual Paid − Net Payable → next month carry forward</div>`
+  onPayMode()
+  document.getElementById('pay-modal').classList.add('open')
+}
+function onPayMode(){
+  const m=document.getElementById('pay-mode').value
+  document.getElementById('pay-split').style.display=m==='Both'?'grid':'none'
+}
+function onPayActual(){
+  const actual=parseFloat(document.getElementById('pay-actual').value||0)
+  const logId=document.getElementById('pay-log-id').value
+  const log=salaryLogs.find(l=>l.id===logId);if(!log)return
+  showPayDiff(actual-parseFloat(log.wagesPayable||0))
+}
+function onPaySplit(){
+  const cash=parseFloat(document.getElementById('pay-cash').value||0)
+  const bank=parseFloat(document.getElementById('pay-bank').value||0)
+  document.getElementById('pay-actual').value=cash+bank||''
+  const logId=document.getElementById('pay-log-id').value
+  const log=salaryLogs.find(l=>l.id===logId);if(!log)return
+  showPayDiff((cash+bank)-parseFloat(log.wagesPayable||0))
+}
+function showPayDiff(diff){
+  const el=document.getElementById('pay-diff');if(!el)return
+  if(!diff&&diff!==0){el.innerHTML='';return}
+  el.innerHTML=`<div class="alert ${diff>0?'alert-warn':diff<0?'alert-info':'alert-success'}">
+    ${diff>0?`⚠ Overpaid by ₹${Math.abs(diff).toFixed(0)} → will be deducted next month`
+    :diff<0?`ℹ Underpaid by ₹${Math.abs(diff).toFixed(0)} → will be added next month`
+    :'✓ Exact payment — no carry forward'}
+  </div>`
+}
+async function confirmPayment(){
+  const logId=document.getElementById('pay-log-id').value
+  const wid=document.getElementById('pay-worker-id').value
+  const actual=parseFloat(document.getElementById('pay-actual').value||0)
+  const mode=document.getElementById('pay-mode').value
+  const cash=parseFloat(document.getElementById('pay-cash').value||0)
+  const bank=parseFloat(document.getElementById('pay-bank').value||0)
+  if(!actual){toast('Enter amount paid','warn');return}
+  const log=salaryLogs.find(l=>l.id===logId);if(!log)return
+  if(mode==='Both'&&Math.abs((cash+bank)-actual)>1){toast('Cash+Bank must equal total paid','warn');return}
+  const bal=(actual-parseFloat(log.wagesPayable||0)).toFixed(2)
+  const updated={...log,actualPaid:actual,paymentMode:mode,
+    cashAmt:mode==='Both'?cash:(mode==='Cash'?actual:0),
+    bankAmt:mode==='Both'?bank:(mode==='Bank'?actual:0),
+    bal,finalized:true}
+  const r=await api('saveSalary',{data:updated})
+  if(r&&r.success){
+    // Save carry forward
+    await api('saveCarryForward',{data:{workerId:wid,month:activeMonth,bal,note:'From salary payment'}})
+    closeModal('pay-modal')
+    const s=await api('getSalaryLog',{month:activeMonth})
+    if(s)salaryLogs=s.logs||[]
+    renderTab();toast('Payment recorded')
+  }
+}
+async function unlockPayment(wid){
+  if(!confirm('ADMIN: Unlock finalized payment? Carry forward will need to be re-saved.'))return
+  const log=salaryLogs.find(l=>l.workerId===wid);if(!log)return
+  const r=await api('unlockFinalized',{logId:log.id,month:activeMonth})
+  if(r&&r.success){log.finalized=false;log.actualPaid='';log.bal='';toast('Unlocked','warn');renderTab()}
+}
+
+// ═══════════════════════════════════════════════════════════
+// OVERVIEW TAB
+// ═══════════════════════════════════════════════════════════
+function renderOverviewShell(){
+  return'<div class="sec-title" style="margin-bottom:12px">📊 Overview</div><div id="ov-content"><div class="empty">Loading...</div></div>'
+}
+async function loadOverview(){
+  const el=document.getElementById('ov-content');if(!el)return
+  const month=document.getElementById('active-month').selectedOptions[0].text
+  const active=workers.filter(isActive)
+  const logs=salaryLogs
+  const finalized=logs.filter(l=>l.finalized)
+  const pending=logs.filter(l=>!l.finalized&&!l.skipped&&l.totalPayable)
+  const totalPayable=logs.reduce((s,l)=>s+parseFloat(l.wagesPayable||0),0)
+  const totalPaid=finalized.reduce((s,l)=>s+parseFloat(l.actualPaid||0),0)
+
+  // Prev month comparison
+  const[y,m]=activeMonth.split('-').map(Number)
+  const prevDate=new Date(y,m-2,1)
+  const prevMonth=prevDate.getFullYear()+'-'+String(prevDate.getMonth()+1).padStart(2,'0')
+  const prevMonthLabel=prevDate.toLocaleDateString('en-IN',{month:'long',year:'numeric'})
+  let prevLogs=[]
+  const pr=await api('getSalaryRange',{from:prevMonth,to:prevMonth})
+  if(pr)prevLogs=pr.logs||[]
+  const prevTotal=prevLogs.reduce((s,l)=>s+parseFloat(l.wagesPayable||0),0)
+  const diff=totalPayable-prevTotal
+  const diffClass=diff>0?'color:var(--red)':diff<0?'color:var(--green)':'color:var(--text3)'
+
+  // Dept breakdown
+  const df=getDeptField()
+  const deptMap={}
+  if(df){
+    active.forEach(w=>{
+      const dept=(w.customData&&w.customData[df.id])||'Unassigned'
+      const l=logs.find(x=>x.workerId===w.id)
+      if(!deptMap[dept])deptMap[dept]={workers:0,payable:0}
+      deptMap[dept].workers++
+      if(l)deptMap[dept].payable+=parseFloat(l.wagesPayable||0)
+    })
+  }
+
+  el.innerHTML=`
+    <div class="ov-grid">
+      <div class="ov-card"><div class="ov-lbl">Total Wages Payable</div><div class="ov-val">${fmtMoney(totalPayable)}</div><div class="ov-sub">${month}</div></div>
+      <div class="ov-card green"><div class="ov-lbl">Paid</div><div class="ov-val">${fmtMoney(totalPaid)}</div><div class="ov-sub">${finalized.length} workers</div></div>
+      <div class="ov-card orange"><div class="ov-lbl">Pending</div><div class="ov-val">${fmtMoney(totalPayable-totalPaid)}</div><div class="ov-sub">${pending.length} workers</div></div>
+      <div class="ov-card"><div class="ov-lbl">vs Last Month</div><div class="ov-val" style="${diffClass}">${diff>=0?'+':''}${fmtMoney(diff)}</div><div class="ov-sub">${prevMonthLabel}: ${fmtMoney(prevTotal)}</div></div>
+    </div>
+
+    <div class="sec-title" style="margin-bottom:10px">Worker Summary</div>
+    <div class="tbl-wrap" style="margin-bottom:16px"><table class="tbl">
+      <thead><tr>
+        <th>#</th><th>Name</th><th>Type</th>
+        <th class="c">Total Payable</th><th class="c">Adv Ded</th><th class="c">Cane</th>
+        <th class="c">Wages Payable</th><th class="c">Actual Paid</th>
+        <th class="c">BAL</th><th class="c">Status</th>
+        ${accessRole==='admin'?'<th class="c">Action</th>':''}
+      </tr></thead>
+      <tbody>
+        ${active.map((w,i)=>{
+          const l=logs.find(x=>x.workerId===w.id)
+          const status=!l?'Not Started':l.skipped?'Skipped':l.finalized?'Paid':l.totalPayable?'Saved':'Not Started'
+          const sc=status==='Paid'?'color:var(--green)':status==='Saved'?'color:var(--accent)':status==='Skipped'?'color:#888':'color:var(--text3)'
+          const bal=parseFloat(l?.bal||0)
+          return`<tr>
+            <td class="text3 mono">${i+1}</td><td><strong>${w.name}</strong></td><td>${tPill(w.type)}</td>
+            <td class="c mono">${l?fmtMoney(l.totalPayable):'—'}</td>
+            <td class="c mono text2">${l?fmtMoney(l.advDeducted):'—'}</td>
+            <td class="c mono text2">${l&&l.cane?fmtMoney(l.cane):'—'}</td>
+            <td class="c mono" style="font-weight:600;color:var(--accent)">${l?fmtMoney(l.wagesPayable):'—'}</td>
+            <td class="c mono">${l&&l.actualPaid?fmtMoney(l.actualPaid):'—'}</td>
+            <td class="c mono" style="${bal>0?'color:var(--orange)':bal<0?'color:var(--green)':'color:var(--text3)'}">${l&&l.bal!==''&&l.bal!==undefined?Math.round(bal):'—'}</td>
+            <td class="c" style="${sc};font-size:11px;font-family:var(--mono)">${status}</td>
+            ${accessRole==='admin'?`<td class="c">${l&&!l.finalized&&l.totalPayable&&!l.skipped?`<button class="btn btn-primary btn-xs" onclick="switchTab('payment')">Pay</button>`:'—'}</td>`:''} 
+          </tr>`
+        }).join('')}
+        <tr style="background:var(--surf2);font-weight:700">
+          <td colspan="3" style="padding-left:10px">TOTAL</td>
+          <td class="c mono">${fmtMoney(logs.reduce((s,l)=>s+parseFloat(l.totalPayable||0),0))}</td>
+          <td class="c mono">${fmtMoney(logs.reduce((s,l)=>s+parseFloat(l.advDeducted||0),0))}</td>
+          <td class="c mono">${fmtMoney(logs.reduce((s,l)=>s+parseFloat(l.cane||0),0))}</td>
+          <td class="c mono" style="color:var(--accent)">${fmtMoney(totalPayable)}</td>
+          <td class="c mono">${fmtMoney(totalPaid)}</td>
+          <td></td><td></td>${accessRole==='admin'?'<td></td>':''}
+        </tr>
+      </tbody>
+    </table></div>
+
+    ${Object.keys(deptMap).length?`
+    <div class="sec-title" style="margin-bottom:10px">Department Summary</div>
+    <div class="tbl-wrap" style="margin-bottom:16px"><table class="tbl">
+      <thead><tr><th>Department</th><th class="c">Workers</th><th class="c">Wages Payable</th></tr></thead>
+      <tbody>
+        ${Object.entries(deptMap).sort((a,b)=>b[1].payable-a[1].payable).map(([d,v])=>`
+          <tr><td><strong>${d}</strong></td><td class="c mono">${v.workers}</td><td class="c mono" style="color:var(--accent)">${fmtMoney(v.payable)}</td></tr>`).join('')}
+      </tbody>
+    </table></div>`:''}
+
+    <div class="sec-title" style="margin-bottom:10px">Month Comparison</div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Metric</th><th class="c">${prevMonthLabel}</th><th class="c">${month}</th><th class="c">Change</th></tr></thead>
+      <tbody>
+        <tr><td>Total Wages</td>
+          <td class="c mono">${fmtMoney(prevTotal)}</td>
+          <td class="c mono">${fmtMoney(totalPayable)}</td>
+          <td class="c mono" style="${diffClass}">${diff>=0?'+':''}${fmtMoney(diff)}</td>
+        </tr>
+        <tr><td>${t1()} Wages</td>
+          <td class="c mono">${fmtMoney(prevLogs.filter(l=>{const w=workers.find(x=>x.id===l.workerId);return w&&w.type==='Labour'}).reduce((s,l)=>s+parseFloat(l.wagesPayable||0),0))}</td>
+          <td class="c mono">${fmtMoney(logs.filter(l=>{const w=workers.find(x=>x.id===l.workerId);return w&&w.type==='Labour'}).reduce((s,l)=>s+parseFloat(l.wagesPayable||0),0))}</td>
+          <td class="c text3">—</td></tr>
+        <tr><td>${t2()} Wages</td>
+          <td class="c mono">${fmtMoney(prevLogs.filter(l=>{const w=workers.find(x=>x.id===l.workerId);return w&&w.type==='Employee'}).reduce((s,l)=>s+parseFloat(l.wagesPayable||0),0))}</td>
+          <td class="c mono">${fmtMoney(logs.filter(l=>{const w=workers.find(x=>x.id===l.workerId);return w&&w.type==='Employee'}).reduce((s,l)=>s+parseFloat(l.wagesPayable||0),0))}</td>
+          <td class="c text3">—</td></tr>
+        <tr><td>Workers Processed</td>
+          <td class="c mono">${prevLogs.filter(l=>!l.skipped).length}</td>
+          <td class="c mono">${logs.filter(l=>!l.skipped).length}</td>
+          <td class="c text3">—</td></tr>
+      </tbody>
+    </table></div>`
+}
+
+// ═══════════════════════════════════════════════════════════
+// ADVANCES TAB
+// ═══════════════════════════════════════════════════════════
+function renderAdvancesPage(){
+  const active=workers.filter(isActive)
+  const defLimit=parseFloat(settings.ADVANCE_LIMIT_DEFAULT)||10000
+  return`
+    <div class="sec-hdr">
+      <div class="sec-title">Advances</div>
+      ${accessRole==='admin'?`<button class="btn btn-primary btn-sm" onclick="openAdvModal()">+ Give Advance</button>`:''}
+    </div>
+
+    <!-- Summary -->
+    <div class="ov-grid" style="margin-bottom:16px">
+      <div class="ov-card orange">
+        <div class="ov-lbl">Total Pending</div>
+        <div class="ov-val">${fmtMoney(advSummary.totalPending||0)}</div>
+        <div class="ov-sub">${(advSummary.workersWithPending||[]).length} workers</div>
+      </div>
+      <div class="ov-card">
+        <div class="ov-lbl">Given This Month</div>
+        <div class="ov-val">${fmtMoney(advSummary.thisGiven||0)}</div>
+      </div>
+      <div class="ov-card green">
+        <div class="ov-lbl">Recovered This Month</div>
+        <div class="ov-val">${fmtMoney(advSummary.thisRecovered||0)}</div>
+      </div>
+      <div class="ov-card">
+        <div class="ov-lbl">Given Last Month</div>
+        <div class="ov-val">${fmtMoney(advSummary.prevGiven||0)}</div>
+        <div class="ov-sub">Recovered: ${fmtMoney(advSummary.prevRecovered||0)}</div>
+      </div>
+    </div>
+
+    <!-- Worker advance status -->
+    <div class="sec-title" style="margin-bottom:10px">Worker Advance Status</div>
+    <div class="tbl-wrap" style="margin-bottom:16px"><table class="tbl">
+      <thead><tr><th>#</th><th>Name</th><th>Type</th><th class="c">Limit</th><th class="c">Pending</th><th class="c">Used %</th><th class="c">Status</th>
+        ${accessRole==='admin'?'<th class="c">Action</th>':''}
+      </tr></thead>
+      <tbody>
+        ${active.map((w,i)=>{
+          const pend=(advSummary.workersWithPending||[]).find(x=>x.workerId===w.id)
+          const pending=pend?pend.pending:0
+          const limit=pend?pend.limit:(parseFloat(w.advanceLimit)||defLimit)
+          const pct=limit>0?Math.round((pending/limit)*100):0
+          const color=pct>=100?'color:var(--red)':pct>=80?'color:var(--orange)':'color:var(--green)'
+          return`<tr>
+            <td class="text3 mono">${i+1}</td><td><strong>${w.name}</strong></td><td>${tPill(w.type)}</td>
+            <td class="c mono">${fmtMoney(limit)}</td>
+            <td class="c mono" style="${pending>0?'color:var(--orange);font-weight:600':''}}">${pending>0?fmtMoney(pending):'—'}</td>
+            <td class="c mono" style="${color}">${pending>0?pct+'%':'—'}</td>
+            <td class="c">${pct>=100?'<span class="st" style="background:var(--redlt);color:var(--red);border-color:var(--redbr)">🔴 Over</span>':
+              pct>=80?'<span class="st" style="background:var(--orangelt);color:var(--orange);border-color:var(--orangebr)">⚠ Near</span>':
+              pending>0?'<span class="st st-saved">● Pending</span>':
+              '<span class="st st-new">✓ Clear</span>'}</td>
+            ${accessRole==='admin'?`<td class="c"><button class="btn btn-primary btn-xs" onclick="openAdvModal('${w.id}')">+ Advance</button></td>`:''} 
+          </tr>`
+        }).join('')}
+      </tbody>
+    </table></div>
+
+    <!-- All advance records -->
+    <div class="sec-title" style="margin-bottom:10px">All Records <span class="badge">${advances.length}</span></div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Date</th><th>Worker</th><th class="c">Amount</th><th>Note</th></tr></thead>
+      <tbody>
+        ${[...advances].reverse().slice(0,50).map(a=>{
+          const w=workers.find(x=>x.id===a.workerId)
+          return`<tr>
+            <td class="mono text2">${a.date}</td>
+            <td>${w?w.name:a.workerId}</td>
+            <td class="c mono" style="color:var(--accent);font-weight:600">${fmtMoney(a.amount)}</td>
+            <td class="text2">${a.note||'—'}</td>
+          </tr>`
+        }).join('')}
+        ${!advances.length?'<tr><td colspan="4" class="empty">No advances recorded yet</td></tr>':''}
+      </tbody>
+    </table></div>`
+}
+
+function openAdvModal(preWid){
+  const sel=document.getElementById('adv-worker')
+  sel.innerHTML=workers.filter(isActive).map(w=>`<option value="${w.id}" ${w.id===preWid?'selected':''}>${w.name}</option>`).join('')
+  document.getElementById('adv-date').value=new Date().toISOString().split('T')[0]
+  document.getElementById('adv-amount').value=''
+  document.getElementById('adv-note').value=''
+  document.getElementById('adv-warn').style.display='none'
+  showAdvBal()
+  document.getElementById('adv-modal').classList.add('open')
+}
+function showAdvBal(){
+  const wid=document.getElementById('adv-worker').value
+  const w=workers.find(x=>x.id===wid);if(!w)return
+  const defLimit=parseFloat(settings.ADVANCE_LIMIT_DEFAULT)||10000
+  const limit=parseFloat(w.advanceLimit)||defLimit
+  const pend=(advSummary.workersWithPending||[]).find(x=>x.workerId===wid)
+  const pending=pend?pend.pending:0
+  const available=Math.max(0,limit-pending)
+  const pct=limit>0?Math.round((pending/limit)*100):0
+  document.getElementById('adv-bal-info').innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center">
+      <div><div class="text2" style="font-size:10px">Limit</div><div class="mono" style="font-weight:600">${fmtMoney(limit)}</div></div>
+      <div><div class="text2" style="font-size:10px">Pending</div><div class="mono" style="font-weight:600;color:var(--orange)">${fmtMoney(pending)}</div></div>
+      <div><div class="text2" style="font-size:10px">Available</div><div class="mono" style="font-weight:600;color:var(--green)">${fmtMoney(available)}</div></div>
+    </div>
+    <div style="background:var(--border);border-radius:4px;height:6px;margin-top:8px;overflow:hidden">
+      <div style="background:${pct>=100?'var(--red)':pct>=80?'var(--orange)':'var(--accent)'};height:100%;width:${Math.min(pct,100)}%;transition:width .3s"></div>
+    </div>
+    <div style="font-size:10px;color:var(--text3);text-align:right;margin-top:3px">${pct}% used</div>`
+}
+function checkAdvLimit(){
+  const wid=document.getElementById('adv-worker').value
+  const amount=parseFloat(document.getElementById('adv-amount').value||0)
+  if(!amount||!wid)return
+  const w=workers.find(x=>x.id===wid);if(!w)return
+  const defLimit=parseFloat(settings.ADVANCE_LIMIT_DEFAULT)||10000
+  const limit=parseFloat(w.advanceLimit)||defLimit
+  const pend=(advSummary.workersWithPending||[]).find(x=>x.workerId===wid)
+  const pending=pend?pend.pending:0
+  const warn=document.getElementById('adv-warn')
+  if(pending+amount>limit){
+    warn.style.display='block'
+    warn.textContent=`⚠ This will exceed the limit by ₹${Math.round(pending+amount-limit).toLocaleString('en-IN')}. You can still proceed.`
+  } else {
+    warn.style.display='none'
+  }
+}
+async function saveAdvance(){
+  const wid=document.getElementById('adv-worker').value
+  const amount=parseFloat(document.getElementById('adv-amount').value||0)
+  const date=document.getElementById('adv-date').value
+  const note=document.getElementById('adv-note').value
+  if(!amount||!wid){toast('Enter worker and amount','warn');return}
+  const r=await api('saveAdvance',{data:{workerId:wid,date,amount,note,givenBy:'admin'}})
+  if(r&&r.success){
+    closeModal('adv-modal')
+    const a=await api('getAdvances')
+    if(a)advances=a.advances||[]
+    const as=await api('getAdvanceSummary',{month:activeMonth})
+    if(as)advSummary=as.summary||{}
+    renderTab()
+    toast(r.warning?'Advance saved (over limit)':'Advance saved',r.warning?'warn':'success')
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// LEDGER TAB
+// ═══════════════════════════════════════════════════════════
+function renderLedgerPage(){
+  const active=workers.filter(isActive)
+  return`
+    <div class="sec-title" style="margin-bottom:14px">📒 Ledger — Worker History</div>
+    <div class="flex gap8" style="margin-bottom:14px">
+      <div style="width:280px">
+        <label>Select Worker</label>
+        <select id="ledger-worker" onchange="loadLedger(this.value)">
+          <option value="">— Choose worker —</option>
+          ${active.map(w=>`<option value="${w.id}">${w.name} (${tLabel(w.type)})</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <div id="ledger-content"><div class="empty">Select a worker to view history</div></div>`
+}
+async function loadLedger(wid){
+  if(!wid)return
+  const r=await api('getLedger',{workerId:wid})
+  const el=document.getElementById('ledger-content')
+  if(!r||!r.ledger.length){el.innerHTML='<div class="empty">No salary records found</div>';return}
+  el.innerHTML=`<div class="tbl-wrap"><table class="tbl">
+    <thead><tr>
+      <th>Month</th><th class="c">Days</th><th class="c">OT Hrs</th>
+      <th class="c">Total Payable</th><th class="c">Adv Ded</th><th class="c">Adv O/S</th>
+      <th class="c">Carry Fwd</th><th class="c">Wages Payable</th>
+      <th class="c">Actual Paid</th><th class="c">Mode</th><th class="c">BAL</th><th class="c">Status</th>
+    </tr></thead>
+    <tbody>
+      ${r.ledger.map(l=>{
+        const bal=parseFloat(l.bal||0)
+        const cf=carryFwdDisplay(parseFloat(l.carryForward||0))
+        return`<tr>
+          <td class="mono">${l.month}</td>
+          <td class="c">${l.wdays}</td>
+          <td class="c mono">${parseFloat(l.otHrs||0).toFixed(1)}</td>
+          <td class="c mono">₹${Math.round(l.totalPayable||0).toLocaleString('en-IN')}</td>
+          <td class="c mono text2">₹${Math.round(l.advDeducted||0)}</td>
+          <td class="c mono">₹${Math.round(l.advOs||0)}</td>
+          <td class="c mono" style="${cf.color}">${cf.text}</td>
+          <td class="c mono" style="font-weight:600;color:var(--accent)">₹${Math.round(l.wagesPayable||0).toLocaleString('en-IN')}</td>
+          <td class="c mono">${l.actualPaid?'₹'+Math.round(l.actualPaid).toLocaleString('en-IN'):'—'}</td>
+          <td class="c">${l.actualPaid?pPill(l.paymentMode):'—'}</td>
+          <td class="c mono" style="${bal>0?'color:var(--orange)':bal<0?'color:var(--green)':'color:var(--text3)'}">${l.bal!==''&&l.bal!==undefined?Math.round(bal):'—'}</td>
+          <td class="c" style="font-size:11px">${l.finalized?'<span style="color:var(--green)">✓ Paid</span>':l.skipped?'<span style="color:#888">⊘ Skipped</span>':'<span style="color:var(--text3)">Pending</span>'}</td>
+        </tr>`
+      }).join('')}
+    </tbody>
+  </table></div>`
+}
+
+// ═══════════════════════════════════════════════════════════
+// SETTINGS TAB
+// ═══════════════════════════════════════════════════════════
+function renderSettings(){
+  const panels=[
+    ['company','🏢 Company'],['labels','🏷️ Labels'],['calc','🧮 Calc Rules'],
+    ['fields','⚙️ Custom Fields'],['workers','👷 Workers'],
+    ['opening','💰 Opening Bal'],['pin','🔑 PINs'],
+    ['archive','📦 Archive'],['export','📤 Export']
+  ]
+  return`
+    <div class="sec-title" style="margin-bottom:14px">Settings</div>
+    <div class="sg">
+      <div class="snav">
+        ${panels.map(([id,label])=>`<div class="si ${activeSP===id?'active':''}" onclick="switchSP('${id}')">${label}</div>`).join('')}
+      </div>
+      <div id="sp-content">${renderSP(activeSP)}</div>
+    </div>`
+}
+function switchSP(id){
+  activeSP=id
+  document.querySelectorAll('.si').forEach((el,i)=>{
+    const ids=['company','labels','calc','fields','workers','opening','pin','archive','export']
+    el.classList.toggle('active',ids[i]===id)
+  })
+  document.getElementById('sp-content').innerHTML=renderSP(id)
+}
+function renderSP(id){
+  switch(id){
+    case 'company': return`<div class="sp">
+      <h4>Company Information</h4>
+      <div class="fg"><div class="fgrp"><label>Company Name</label><input id="s-cn" value="${settings.COMPANY_NAME||''}"/></div></div>
+      <div class="fg"><div class="fgrp"><label>Address</label><input id="s-ca" value="${settings.COMPANY_ADDRESS||''}"/></div></div>
+      <button class="btn btn-primary mt8" onclick="saveCompany()">Save</button></div>`
+    case 'labels': return`<div class="sp">
+      <h4>Worker Type Labels</h4>
+      <div class="fg fg2">
+        <div class="fgrp"><label>Type 1 (Hours-based) — currently: ${t1()}</label><input id="s-t1" value="${t1()}"/></div>
+        <div class="fgrp"><label>Type 2 (Days-based) — currently: ${t2()}</label><input id="s-t2" value="${t2()}"/></div>
+      </div>
+      <button class="btn btn-primary mt8" onclick="saveLabels()">Save Labels</button></div>`
+    case 'calc': return`<div class="sp">
+      <h4>Calculation Rules</h4>
+      <div class="alert alert-info">Formula: HR Rate = Salary ÷ Days in Month ÷ 8 &nbsp;|&nbsp; Salary = W.Days × HR Rate × 8 &nbsp;|&nbsp; OT = OT Hrs × HR Rate</div>
+      <div class="fg fg2 mt8">
+        <div class="fgrp"><label>Normal Hours/Day (for display)</label><input type="number" id="s-nhrs" value="${settings.NORMAL_HRS||8}" step="0.5"/></div>
+        <div class="fgrp"><label>OT Rate</label>
+          <select id="s-otm">
+            <option value="1" ${settings.OT_MULTIPLIER==='1'?'selected':''}>1× same rate</option>
+            <option value="1.5" ${settings.OT_MULTIPLIER==='1.5'?'selected':''}>1.5× time & half</option>
+            <option value="2" ${settings.OT_MULTIPLIER==='2'?'selected':''}>2× double time</option>
+          </select>
+        </div>
+        <div class="fgrp"><label>Round Off Wages</label>
+          <select id="s-rnd">
+            <option value="0" ${settings.ROUNDOFF==='0'?'selected':''}>No rounding</option>
+            <option value="10" ${settings.ROUNDOFF==='10'?'selected':''}>Nearest ₹10</option>
+            <option value="50" ${settings.ROUNDOFF==='50'?'selected':''}>Nearest ₹50</option>
+            <option value="100" ${settings.ROUNDOFF==='100'?'selected':''}>Nearest ₹100</option>
+          </select>
+        </div>
+        <div class="fgrp"><label>Default Payment Mode</label>
+          <select id="s-dp">
+            <option value="Cash" ${settings.DEFAULT_PAYMENT==='Cash'?'selected':''}>Cash</option>
+            <option value="Bank" ${settings.DEFAULT_PAYMENT==='Bank'?'selected':''}>Bank</option>
+            <option value="Both" ${settings.DEFAULT_PAYMENT==='Both'?'selected':''}>Both</option>
+          </select>
+        </div>
+      </div>
+      <div class="fg fg2">
+        <div class="fgrp"><label>Labour Hours Input Mode</label>
+          <select id="s-hrmode">
+            <option value="B" ${(settings.HR_INPUT_MODE||'B')==='B'?'selected':''}>Mode B — Enter OT hours only (default)</option>
+            <option value="A" ${settings.HR_INPUT_MODE==='A'?'selected':''}>Mode A — Enter total clock hours (lunch auto-deducted)</option>
+          </select>
+        </div>
+        <div class="fgrp"><label>Default Advance Limit (₹)</label>
+          <input type="number" id="s-advlimit" value="${settings.ADVANCE_LIMIT_DEFAULT||10000}"/>
+        </div>
+        <div class="fgrp"><label>ESI Rate (default 0.75%)</label>
+          <input type="number" id="s-esirate" value="${settings.ESI_RATE||0.0075}" step="0.0001" placeholder="0.0075"/>
+          <span style="font-size:11px;color:var(--text2)">Enter as decimal: 0.75% = 0.0075</span>
+        </div>
+      </div>
+      <button class="btn btn-primary mt8" onclick="saveCalc()">Save Rules</button></div>`
+    case 'fields': return`<div class="sp">
+      <h4>Custom Fields</h4>
+      <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Add extra columns to Workers or Monthly Salary tables.</p>
+      <div style="margin-bottom:10px">
+        ${customFields.length?customFields.map(f=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--surf2);border:1px solid var(--border);border-radius:6px;margin-bottom:6px">
+            <div style="flex:1"><div style="font-weight:500">${f.name}</div>
+              <div style="font-size:11px;color:var(--text2);font-family:var(--mono)">${f.type} · ${f.applies} ${f.affects&&f.affects!=='none'?'· '+f.affects:''}</div>
+            </div>
+            <button class="btn btn-danger btn-xs" onclick="deleteField('${f.id}')">✕</button>
+          </div>`).join(''):'<div class="text3" style="font-size:12px;margin-bottom:8px">No custom fields yet</div>'}
+      </div>
+      <button class="btn btn-primary" onclick="addField()">+ Add Field</button></div>`
+    case 'workers': return renderWorkerSettings()
+    case 'opening': return renderOpeningBal()
+    case 'pin': return renderPinSettings()
+    case 'archive': return renderArchiveSettings()
+    case 'export': return renderExportSettings()
+    default: return''
+  }
+}
+
+async function saveCompany(){
+  const r=await api('saveSettings',{data:{COMPANY_NAME:document.getElementById('s-cn').value,COMPANY_ADDRESS:document.getElementById('s-ca').value}})
+  if(r?.success){settings.COMPANY_NAME=document.getElementById('s-cn').value;settings.COMPANY_ADDRESS=document.getElementById('s-ca').value;toast('Saved')}
+}
+async function saveLabels(){
+  const t1v=document.getElementById('s-t1').value.trim()
+  const t2v=document.getElementById('s-t2').value.trim()
+  if(!t1v||!t2v){toast('Both labels required','warn');return}
+  const r=await api('saveSettings',{data:{TYPE1_LABEL:t1v,TYPE2_LABEL:t2v}})
+  if(r?.success){settings.TYPE1_LABEL=t1v;settings.TYPE2_LABEL=t2v;toast('Labels saved')}
+}
+async function saveCalc(){
+  const data={
+    NORMAL_HRS:document.getElementById('s-nhrs').value,
+    OT_MULTIPLIER:document.getElementById('s-otm').value,
+    ROUNDOFF:document.getElementById('s-rnd').value,
+    DEFAULT_PAYMENT:document.getElementById('s-dp').value,
+    HR_INPUT_MODE:document.getElementById('s-hrmode').value,
+    ADVANCE_LIMIT_DEFAULT:document.getElementById('s-advlimit').value,
+    ESI_RATE:document.getElementById('s-esirate').value
+  }
+  const r=await api('saveSettings',{data})
+  if(r?.success){Object.assign(settings,data);toast('Rules saved — reopen salary tab to apply')}
+}
+async function deleteField(id){
+  if(!confirm('Remove this field?'))return
+  await api('deleteCustomField',{fieldId:id})
+  const cf=await api('getCustomFields');if(cf)customFields=cf.fields||[]
+  switchSP('fields')
+}
+function addField(){
+  const name=prompt('Field name:');if(!name)return
+  const type=prompt('Type (text/number/dropdown):','text');if(!type)return
+  const applies=prompt('Applies to (worker/monthly):','monthly');if(!applies)return
+  const affects=applies==='monthly'?prompt('Affects wages? (none/add/deduct):','none'):'none'
+  api('saveCustomField',{data:{name,type,applies,affects:affects||'none',print:'yes'}}).then(r=>{
+    if(r?.success){
+      api('getCustomFields').then(cf=>{if(cf)customFields=cf.fields||[];switchSP('fields')})
+      toast('Field added')
+    }
+  })
+}
+function renderWorkerSettings(){
+  const active=workers.filter(isActive);const inactive=workers.filter(w=>!isActive(w))
+  return`<div class="sp">
+    <h4>Manage Workers</h4>
+    <button class="btn btn-primary" style="margin-bottom:10px" onclick="openWorkerModal()">+ Add Worker</button>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>#</th><th>Name</th><th>Type</th><th>Salary</th><th>Adv Limit</th><th>Pay Mode</th><th>Actions</th></tr></thead>
+      <tbody>
+        ${active.map((w,i)=>`<tr>
+          <td class="text3 mono">${i+1}</td><td><strong>${w.name}</strong></td><td>${tPill(w.type)}</td>
+          <td class="mono">${fmtMoney(w.salary)}</td>
+          <td class="mono text2">${w.advanceLimit?fmtMoney(w.advanceLimit):'—'}</td>
+          <td>${pPill(w.paymentMode)}</td>
+          <td>
+            <button class="btn btn-outline btn-xs" onclick="openWorkerModal('${w.id}')">Edit</button>
+            <button class="btn btn-danger btn-xs" style="margin-left:4px" onclick="deactivateWorker('${w.id}')">Remove</button>
+          </td>
+        </tr>`).join('')}
+        ${inactive.map(w=>`<tr style="opacity:.4">
+          <td></td><td>${w.name}</td><td>${tPill(w.type)}</td><td class="mono">${fmtMoney(w.salary)}</td><td></td><td></td>
+          <td><button class="btn btn-outline btn-xs" onclick="restoreWorker('${w.id}')">Restore</button></td>
+        </tr>`).join('')}
+      </tbody>
+    </table></div></div>`
+}
+function openWorkerModal(id){
+  const w=id?workers.find(x=>x.id===id):null
+  document.getElementById('wm-title').textContent=w?'Edit Worker':'Add Worker'
+  document.getElementById('wm-id').value=w?.id||''
+  document.getElementById('wm-name').value=w?.name||''
+  document.getElementById('wm-type').value=w?.type||'Labour'
+  document.getElementById('wm-salary').value=w?.salary||''
+  document.getElementById('wm-adv-limit').value=w?.advanceLimit||settings.ADVANCE_LIMIT_DEFAULT||'10000'
+  document.getElementById('wm-pay').value=w?.paymentMode||settings.DEFAULT_PAYMENT||'Cash'
+  document.getElementById('wm-bank').value=w?.bankAccount||''
+  document.getElementById('wm-esi').value=w?.esiEligible?'true':'false'
+  const wc=wcf()
+  document.getElementById('wm-cf').innerHTML=wc.length?`<hr/><div style="font-size:12px;font-weight:600;color:var(--text2);margin-bottom:8px">Custom Fields</div>
+    <div class="fg fg2">${wc.map(f=>`<div class="fgrp"><label>${f.name}</label>
+      <input type="${f.type==='number'?'number':'text'}" id="wcf-${f.id}" value="${w?.customData?.[f.id]||''}"/>
+    </div>`).join('')}</div>`:''
+  document.getElementById('worker-modal').classList.add('open')
+}
+async function saveWorker(){
+  const name=document.getElementById('wm-name').value.trim()
+  const salary=parseFloat(document.getElementById('wm-salary').value||0)
+  if(!name||!salary){toast('Name and salary required','warn');return}
+  const wc=wcf();const customData={}
+  wc.forEach(f=>{const el=document.getElementById('wcf-'+f.id);if(el)customData[f.id]=el.value})
+  const data={id:document.getElementById('wm-id').value||null,name,type:document.getElementById('wm-type').value,
+    salary,paymentMode:document.getElementById('wm-pay').value,
+    bankAccount:document.getElementById('wm-bank').value,
+    advanceLimit:parseFloat(document.getElementById('wm-adv-limit').value)||0,
+    esiEligible:document.getElementById('wm-esi').value==='true',
+    active:true,customData}
+  const r=await api('saveWorker',{data})
+  if(r?.success){closeModal('worker-modal');const wr=await api('getWorkers');if(wr)workers=wr.workers||[];renderTab();toast('Worker saved')}
+}
+async function deactivateWorker(id){
+  if(!confirm('Remove worker? Can restore later.'))return
+  await api('deleteWorker',{id});const wr=await api('getWorkers');if(wr)workers=wr.workers||[];renderTab()
+}
+async function restoreWorker(id){
+  const w=workers.find(x=>x.id===id);if(!w)return
+  w.active=true;await api('saveWorker',{data:w});const wr=await api('getWorkers');if(wr)workers=wr.workers||[];renderTab()
+}
+function renderOpeningBal(){
+  const done=settings.OB_DONE==='true'
+  if(done)return`<div class="sp"><h4>Opening Balances</h4><div class="alert alert-success">✅ Opening balances are set and locked.</div></div>`
+  const active=workers.filter(isActive)
+  return`<div class="sp">
+    <h4>Opening Balances <span class="badge" style="background:var(--orangelt);color:var(--orange)">One-time setup</span></h4>
+    <div class="alert alert-warn">Enter pending advance balances and carry-forward from old records. Set once, then lock.</div>
+    <div class="tbl-wrap mt8"><table class="tbl">
+      <thead><tr><th>#</th><th>Worker</th><th>Type</th>
+        <th>Pending Adv O/S (₹)</th>
+        <th>Carry Forward (₹)<br/><span style="font-weight:400;font-size:10px">+ = add to wages · − = deduct</span></th>
+      </tr></thead>
+      <tbody>
+        ${active.map((w,i)=>{
+          const ob=openingBalances[w.id]||{}
+          return`<tr>
+            <td class="text3 mono">${i+1}</td><td><strong>${w.name}</strong></td><td>${tPill(w.type)}</td>
+            <td><input type="number" id="ob-adv-${w.id}" value="${ob.advOs||''}" placeholder="0" style="width:130px"/></td>
+            <td><input type="number" id="ob-cf-${w.id}" value="${ob.carryFwd||''}" placeholder="0" style="width:160px"/></td>
+          </tr>`
+        }).join('')}
+      </tbody>
+    </table></div>
+    <div class="flex gap8 mt12">
+      <button class="btn btn-primary" onclick="saveAllOB()">💾 Save All</button>
+      <button class="btn btn-success" onclick="markOBDone()">✅ Lock & Done</button>
+    </div></div>`
+}
+async function saveAllOB(){
+  const active=workers.filter(isActive)
+  for(const w of active){
+    const advOs=parseFloat(document.getElementById('ob-adv-'+w.id)?.value||0)
+    const carryFwd=parseFloat(document.getElementById('ob-cf-'+w.id)?.value||0)
+    await api('saveOpeningBalance',{workerId:w.id,advOs,carryFwd})
+    openingBalances[w.id]={advOs,carryFwd}
+  }
+  localStorage.setItem('sms_ob',JSON.stringify(openingBalances))
+  toast('Opening balances saved')
+}
+async function markOBDone(){
+  if(!confirm('Lock opening balances?'))return
+  await saveAllOB();await api('openingBalanceDone');settings.OB_DONE='true';switchSP('opening')
+}
+function renderPinSettings(){
+  return`<div class="sp">
+    <h4>Change Admin PIN</h4>
+    <div class="fg fg3">
+      <div class="fgrp"><label>Current Admin PIN</label><input type="password" id="pa-old" maxlength="4"/></div>
+      <div class="fgrp"><label>New Admin PIN</label><input type="password" id="pa-new" maxlength="4"/></div>
+      <div class="fgrp"><label>Confirm New PIN</label><input type="password" id="pa-cnf" maxlength="4"/></div>
+    </div>
+    <button class="btn btn-primary mt8" onclick="changePin('admin')">Change Admin PIN</button>
+    <hr/>
+    <h4>Change View PIN</h4>
+    <div class="fg fg3">
+      <div class="fgrp"><label>Current View PIN</label><input type="password" id="pv-old" maxlength="4"/></div>
+      <div class="fgrp"><label>New View PIN</label><input type="password" id="pv-new" maxlength="4"/></div>
+      <div class="fgrp"><label>Confirm New PIN</label><input type="password" id="pv-cnf" maxlength="4"/></div>
+    </div>
+    <button class="btn btn-primary mt8" onclick="changePin('view')">Change View PIN</button></div>`
+}
+async function changePin(role){
+  const p=role[0]
+  const oldV=document.getElementById(`p${p}-old`).value
+  const newV=document.getElementById(`p${p}-new`).value
+  const cnfV=document.getElementById(`p${p}-cnf`).value
+  if(newV!==cnfV){toast('PINs do not match','warn');return}
+  if(newV.length!==4){toast('PIN must be 4 digits','warn');return}
+  const r=await api('changePin',{oldPin:oldV,newPin:newV,role})
+  if(r?.success){document.getElementById(`p${p}-old`).value='';document.getElementById(`p${p}-new`).value='';document.getElementById(`p${p}-cnf`).value='';toast(role+' PIN changed')}
+  else toast(r?.error||'Failed','error')
+}
+function renderArchiveSettings(){
+  return`<div class="sp">
+    <h4>6-Month Archive</h4>
+    ${archiveStatus.needsArchive?'<div class="alert alert-warn">⚠️ You have '+archiveStatus.salarySheets+' months of data. Consider archiving older months.</div>':'<div class="alert alert-info">Archive salary sheets to an external Google Sheet to keep master clean.</div>'}
+    <div class="fg fg2 mt12">
+      <div class="fgrp"><label>From Month</label><input type="month" id="arch-from"/></div>
+      <div class="fgrp"><label>To Month</label><input type="month" id="arch-to"/></div>
+    </div>
+    <div class="fgrp mt8"><label>Target Google Sheet ID</label>
+      <input id="arch-id" placeholder="Paste Sheet ID from URL"/>
+    </div>
+    <div class="alert alert-warn mt8">⚠️ Monthly salary sheets will be deleted from master after archiving.</div>
+    <button class="btn btn-danger mt8" onclick="runArchive()">📦 Archive & Delete from Master</button></div>`
+}
+async function runArchive(){
+  const from=document.getElementById('arch-from').value
+  const to=document.getElementById('arch-to').value
+  const sheetId=document.getElementById('arch-id').value.trim()
+  if(!from||!to||!sheetId){toast('Fill all fields','warn');return}
+  if(!confirm(`Archive ${from} to ${to}? This will delete those monthly sheets from master.`))return
+  const r=await api('archiveMonths',{sheetId,from,to})
+  if(r?.success)toast(`Archived ${r.archived} records. New start: ${r.newStartMonth}`,'success',6000)
+  else toast(r?.error||'Archive failed','error',6000)
+}
+function renderExportSettings(){
+  return`<div class="sp">
+    <h4>Export Monthly Data</h4>
+    <div class="fg fg2">
+      <div class="fgrp"><label>Month</label>
+        <select id="exp-month">
+          ${Array.from(document.getElementById('active-month').options).map(o=>`<option value="${o.value}">${o.text}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-primary mt8" onclick="exportCSV()">📤 Download CSV</button></div>`
+}
+async function exportCSV(){
+  const month=document.getElementById('exp-month').value
+  const r=await api('exportMonth',{month})
+  if(!r?.csv){toast('No data for this month','warn');return}
+  const blob=new Blob([r.csv],{type:'text/csv'})
+  const url=URL.createObjectURL(blob)
+  const a=document.createElement('a');a.href=url;a.download=`salary_${month}.csv`;a.click()
+  URL.revokeObjectURL(url);toast('CSV downloaded')
+}
+
+// ═══════════════════════════════════════════════════════════
+// PRINT
+// ═══════════════════════════════════════════════════════════
+async function printMonth(){
+  const month=document.getElementById('active-month').selectedOptions[0].text
+  const daysInMonth=getDays(activeMonth)
+  const active=workers.filter(isActive)
+  const t1s=active.filter(w=>w.type==='Labour')
+  const t2s=active.filter(w=>w.type==='Employee')
+  const ordered=[...t1s,...t2s]
+  const rows=ordered.map(w=>{
+    const l=salaryLogs.find(x=>x.workerId===w.id)
+    const pd=w.salary/daysInMonth
+    const ph=pd/8
+    return{w,l,pd,ph,
+      salaryAmt:l?parseFloat(l.salaryAmt||0):0,
+      otAmt:l?parseFloat(l.otAmt||0):0,
+      totalPayable:l?parseFloat(l.totalPayable||0):0,
+      wagesPayable:l?parseFloat(l.wagesPayable||0):0,
+      bal:l&&l.bal?parseFloat(l.bal):''}
+  })
+  const tot=k=>rows.reduce((s,r)=>s+(r[k]||0),0)
+  document.getElementById('print-container').innerHTML=`
+    <div class="print-co"><h2>${settings.COMPANY_NAME||'Company Name'}</h2><p>${settings.COMPANY_ADDRESS||''}</p></div>
+    <div class="print-title" style="font-size:11px;font-weight:700;text-align:center;margin-bottom:2mm">SALARY REGISTER — ${month.toUpperCase()}</div>
+    <table class="ptbl">
+      <thead><tr>
+        <th>S.No</th><th>NAME</th><th>SALARY</th><th>Per Day</th><th>Per HR</th>
+        <th>W.Day</th><th>HOLIDAY</th><th>OT Hrs</th>
+        <th>Salary Amt</th><th>OT Amt</th><th>Total Payable</th>
+        <th>Prev Adv</th><th>New Adv</th><th>(-) Adv</th><th>Adv O/S</th>
+        <th>Carry Fwd</th><th>Cane</th><th>Wages Payable</th>
+        <th>ESI</th><th>Net Payable</th>
+        <th>Actual Paid</th><th>BAL</th><th>Sign</th>
+      </tr></thead>
+      <tbody>
+        ${t1s.length?`<tr class="sechd"><td colspan="99">${t1()}</td></tr>`:''}
+        ${rows.filter(r=>r.w.type==='Labour').map((r,i)=>`<tr>
+          <td>${i+1}</td><td class="lft">${r.w.name}</td>
+          <td>${r.w.salary}</td><td>${r.pd.toFixed(2)}</td><td>${r.ph.toFixed(2)}</td>
+          <td>${r.l?r.l.wdays:''}</td><td>${r.l?r.l.holiday:''}</td>
+          <td>${r.l?parseFloat(r.l.otHrs||0).toFixed(1):''}</td>
+          <td>${r.salaryAmt?Math.round(r.salaryAmt):''}</td><td>${r.otAmt?Math.round(r.otAmt):''}</td>
+          <td>${r.totalPayable?Math.round(r.totalPayable):''}</td>
+          <td>${r.l?r.l.prevAdv:''}</td><td>${r.l?r.l.newAdv:''}</td>
+          <td>${r.l?r.l.advDeducted:''}</td><td>${r.l?Math.round(r.l.advOs):''}</td>
+          <td>${r.l?Math.round(r.l.carryForward):''}</td><td>${r.l?r.l.cane:''}</td>
+          <td><strong>${r.wagesPayable?Math.round(r.wagesPayable):''}</strong></td>
+          <td>${r.l&&r.l.esiAmount?Math.round(r.l.esiAmount):''}</td>
+          <td><strong>${r.l&&r.l.netPayable?Math.round(r.l.netPayable):''}</strong></td>
+          <td>${r.l&&r.l.actualPaid?Math.round(r.l.actualPaid):''}</td>
+          <td>${r.bal!==''?Math.round(r.bal):''}</td><td></td>
+        </tr>`).join('')}
+        ${t2s.length?`<tr class="sechd"><td colspan="99">${t2()}</td></tr>`:''}
+        ${rows.filter(r=>r.w.type==='Employee').map((r,i)=>`<tr>
+          <td>${t1s.length+i+1}</td><td class="lft">${r.w.name}</td>
+          <td>${r.w.salary}</td><td>${r.pd.toFixed(2)}</td><td>—</td>
+          <td>${r.l?r.l.wdays:''}</td><td>${r.l?r.l.holiday:''}</td><td>—</td>
+          <td>${r.salaryAmt?Math.round(r.salaryAmt):''}</td><td>—</td>
+          <td>${r.totalPayable?Math.round(r.totalPayable):''}</td>
+          <td>${r.l?r.l.prevAdv:''}</td><td>${r.l?r.l.newAdv:''}</td>
+          <td>${r.l?r.l.advDeducted:''}</td><td>${r.l?Math.round(r.l.advOs):''}</td>
+          <td>${r.l?Math.round(r.l.carryForward):''}</td><td>${r.l?r.l.cane:''}</td>
+          <td><strong>${r.wagesPayable?Math.round(r.wagesPayable):''}</strong></td>
+          <td>${r.l&&r.l.esiAmount?Math.round(r.l.esiAmount):''}</td>
+          <td><strong>${r.l&&r.l.netPayable?Math.round(r.l.netPayable):''}</strong></td>
+          <td>${r.l&&r.l.actualPaid?Math.round(r.l.actualPaid):''}</td>
+          <td>${r.bal!==''?Math.round(r.bal):''}</td><td></td>
+        </tr>`).join('')}
+        <tr class="totrow">
+          <td colspan="8" style="text-align:right">TOTAL</td>
+          <td>${Math.round(tot('salaryAmt'))}</td><td>${Math.round(tot('otAmt'))}</td>
+          <td>${Math.round(tot('totalPayable'))}</td>
+          <td></td><td></td><td></td><td></td><td></td><td></td>
+          <td>${Math.round(tot('wagesPayable'))}</td>
+          <td>${Math.round(rows.reduce((s,r)=>s+parseFloat(r.l&&r.l.esiAmount||0),0))}</td>
+          <td>${Math.round(rows.reduce((s,r)=>s+parseFloat(r.l&&r.l.netPayable||r.wagesPayable||0),0))}</td>
+          <td></td><td></td><td></td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="print-footer">
+      <span>Total: ${ordered.length} (${t1()}: ${t1s.length}, ${t2()}: ${t2s.length})</span>
+      <span>Prepared: _________________ &nbsp; Approved: _________________</span>
+    </div>`
+  window.print()
+}
+
+// ═══════════════════════════════════════════════════════════
+// UTILS
+// ═══════════════════════════════════════════════════════════
+function closeModal(id){document.getElementById(id).classList.remove('open')}
+</script>
+</body>
+</html>
