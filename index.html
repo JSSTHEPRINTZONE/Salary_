@@ -663,13 +663,17 @@ async function loadAll(){
 }
 async function refreshAll(){
   const wasTab=activeTab
-  // Reload salary logs for current month — keep tableEdits intact
+  // Reload all live data — keep tableEdits intact
   const s=await api('getSalaryLog',{month:activeMonth})
   if(s)salaryLogs=s.logs||[]
   const w=await api('getWorkers')
   if(w)workers=w.workers||[]
   const a=await api('getAdvances')
   if(a)advances=a.advances||[]
+  const as=await api('getAdvanceSummary',{month:activeMonth})
+  if(as)advSummary=as.summary||{}
+  const ob=await api('getOpeningBalances')
+  if(ob){openingBalances=ob.balances||{};localStorage.setItem('sms_ob',JSON.stringify(openingBalances))}
   activeTab=wasTab;renderTab()
   toast('Refreshed','info',1500)
 }
@@ -692,10 +696,17 @@ function setupMonthPicker(){
 }
 async function onMonthChange(){
   activeMonth=document.getElementById('active-month').value
-  // Load salary logs for new month — clear edits since it's a different month
+  // Clear edits for new month
   tableEdits={};rowLocks={}
-  const s=await api('getSalaryLog',{month:activeMonth})
+  // Reload ALL data for new month — advances, logs, summary
+  const [s,a,as]=await Promise.all([
+    api('getSalaryLog',{month:activeMonth}),
+    api('getAdvances'),
+    api('getAdvanceSummary',{month:activeMonth})
+  ])
   if(s)salaryLogs=s.logs||[]
+  if(a)advances=a.advances||[]
+  if(as)advSummary=as.summary||{}
   renderTab()
   setTimeout(updateDraftBanner, 100)
 }
@@ -721,7 +732,23 @@ function renderTab(){
   if(activeTab==='workers')c.innerHTML=renderWorkers()
   else if(activeTab==='salary'){
     c.innerHTML=renderSalaryPage()
-    // Auto-restore draft if tableEdits is empty and draft exists
+    // Reload advances + salary logs fresh every time salary tab opens
+    // so pending advance, carry fwd, prevAdv are always current
+    Promise.all([
+      api('getAdvances').then(r=>{if(r)advances=r.advances||[]}),
+      api('getSalaryLog',{month:activeMonth}).then(r=>{if(r)salaryLogs=r.logs||[]}),
+      api('getAdvanceSummary',{month:activeMonth}).then(r=>{if(r)advSummary=r.summary||{}}),
+      api('getOpeningBalances').then(r=>{if(r){openingBalances=r.balances||{};localStorage.setItem('sms_ob',JSON.stringify(openingBalances))}})
+    ]).then(()=>{
+      // Auto-restore draft if tableEdits is empty and draft exists
+      if(Object.keys(tableEdits).length===0 && hasDraft()){
+        const draft=loadDraft()
+        Object.assign(tableEdits, draft)
+      }
+      buildSalaryTable()
+      updateDraftBanner()
+    })
+    // Show table immediately with cached data while reloading
     if(Object.keys(tableEdits).length===0 && hasDraft()){
       const draft=loadDraft()
       Object.assign(tableEdits, draft)
@@ -1711,11 +1738,14 @@ async function saveAdvance(){
   const r=await api('saveAdvance',{data:{workerId:wid,date,amount,note,givenBy:'admin'}})
   if(r&&r.success){
     closeModal('adv-modal')
+    // Reload advances fresh so salary table shows updated New Adv
     const a=await api('getAdvances')
     if(a)advances=a.advances||[]
     const as=await api('getAdvanceSummary',{month:activeMonth})
     if(as)advSummary=as.summary||{}
-    renderTab()
+    // If salary tab is open, rebuild table with new advance data
+    if(activeTab==='salary') buildSalaryTable()
+    else renderTab()
     toast(r.warning?'Advance saved (over limit)':'Advance saved',r.warning?'warn':'success')
   }
 }
