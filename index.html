@@ -404,6 +404,7 @@ let activeTab='workers'
 let activeSP='company'
 // Salary table state
 let tableEdits={}         // {wid: {wdays, otHrs, advDed, cane, ...}} — live unsaved edits
+let lastMonthLogs={}      // {wid: log} — last month salary logs (for prevAdv/carryFwd display)
 let rowLocks={}           // {wid: true} — rows locked (saved, need confirm to edit)
 let editUnlocked=new Set()// wids that have been unlocked for editing
 const PENDING_KEY='sms_pending_v4'
@@ -696,19 +697,24 @@ function setupMonthPicker(){
 }
 async function onMonthChange(){
   activeMonth=document.getElementById('active-month').value
-  // Clear edits for new month
-  tableEdits={};rowLocks={}
-  // Reload ALL data for new month — advances, logs, summary
-  const [s,a,as]=await Promise.all([
+  // Clear ALL stale data immediately on month change
+  tableEdits={};rowLocks={};editUnlocked=new Set()
+  lastMonthLogs={};salaryLogs=[]  // clear to prevent old month data showing
+  renderTab() // render empty table immediately
+  // Then load fresh data for new month
+  const prevM=getPrevMonth(activeMonth)
+  const [s,a,as,lm]=await Promise.all([
     api('getSalaryLog',{month:activeMonth}),
     api('getAdvances'),
-    api('getAdvanceSummary',{month:activeMonth})
+    api('getAdvanceSummary',{month:activeMonth}),
+    api('getSalaryLog',{month:prevM})
   ])
   if(s)salaryLogs=s.logs||[]
   if(a)advances=a.advances||[]
   if(as)advSummary=as.summary||{}
+  if(lm&&lm.logs)lm.logs.forEach(l=>{lastMonthLogs[l.workerId]=l})
   renderTab()
-  setTimeout(updateDraftBanner, 100)
+  setTimeout(updateDraftBanner,100)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -732,29 +738,30 @@ function renderTab(){
   if(activeTab==='workers')c.innerHTML=renderWorkers()
   else if(activeTab==='salary'){
     c.innerHTML=renderSalaryPage()
-    // Reload advances + salary logs fresh every time salary tab opens
-    // so pending advance, carry fwd, prevAdv are always current
-    Promise.all([
-      api('getAdvances').then(r=>{if(r)advances=r.advances||[]}),
-      api('getSalaryLog',{month:activeMonth}).then(r=>{if(r)salaryLogs=r.logs||[]}),
-      api('getAdvanceSummary',{month:activeMonth}).then(r=>{if(r)advSummary=r.summary||{}}),
-      api('getOpeningBalances').then(r=>{if(r){openingBalances=r.balances||{};localStorage.setItem('sms_ob',JSON.stringify(openingBalances))}})
-    ]).then(()=>{
-      // Auto-restore draft if tableEdits is empty and draft exists
-      if(Object.keys(tableEdits).length===0 && hasDraft()){
+    buildSalaryTable() // show immediately with cached data
+    showLoader(true)
+    const prevM=getPrevMonth(activeMonth)
+    // Step 1: auto-init month sheet if empty (pre-fills prevAdv, carryFwd from last month)
+    api('autoInitMonth',{month:activeMonth}).then(async()=>{
+      // Step 2: reload everything fresh
+      await Promise.all([
+        api('getAdvances').then(r=>{if(r)advances=r.advances||[]}),
+        api('getSalaryLog',{month:activeMonth}).then(r=>{if(r)salaryLogs=r.logs||[]}),
+        api('getAdvanceSummary',{month:activeMonth}).then(r=>{if(r)advSummary=r.summary||{}}),
+        api('getOpeningBalances').then(r=>{if(r){openingBalances=r.balances||{};localStorage.setItem('sms_ob',JSON.stringify(openingBalances))}}),
+        api('getSalaryLog',{month:prevM}).then(r=>{
+          lastMonthLogs={}
+          if(r&&r.logs)r.logs.forEach(l=>{lastMonthLogs[l.workerId]=l})
+        })
+      ])
+      showLoader(false)
+      if(Object.keys(tableEdits).length===0&&hasDraft()){
         const draft=loadDraft()
-        Object.assign(tableEdits, draft)
+        Object.assign(tableEdits,draft)
       }
       buildSalaryTable()
       updateDraftBanner()
     })
-    // Show table immediately with cached data while reloading
-    if(Object.keys(tableEdits).length===0 && hasDraft()){
-      const draft=loadDraft()
-      Object.assign(tableEdits, draft)
-    }
-    buildSalaryTable()
-    updateDraftBanner()
   }
   else if(activeTab==='payment'){c.innerHTML=renderPaymentPage()}
   else if(activeTab==='overview'){c.innerHTML=renderOverviewShell();loadOverview()}
@@ -773,6 +780,7 @@ function tLabel(type){return type==='Labour'?t1():t2()}
 function tPill(type){return `<span class="pill ${type==='Labour'?'t1':'t2'}">${tLabel(type)}</span>`}
 function pPill(mode){return `<span class="pill ${(mode||'Cash').toLowerCase()}">${mode||'Cash'}</span>`}
 function getDays(m){const[y,mo]=m.split('-').map(Number);return new Date(y,mo,0).getDate()}
+function getPrevMonth(m){const[y,mo]=m.split('-').map(Number);const d=new Date(y,mo-2,1);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')}
 function nhd(){return parseFloat(settings.NORMAL_HRS)||8}
 function otMult(){return parseFloat(settings.OT_MULTIPLIER)||1}
 function roundoff(v){const r=parseInt(settings.ROUNDOFF)||0;if(!r)return v;return Math.round(v/r)*r}
@@ -1075,9 +1083,18 @@ function buildSalaryTable(){
     const advDed   = te.advDed  !== undefined ? te.advDed  : (log ? log.advDeducted : '')
     const cane     = te.cane    !== undefined ? te.cane    : (log ? log.cane    : 0)
 
-    // Carry forward and prevAdv from saved log
-    const prevAdv  = log ? parseFloat(log.prevAdv||0)      : getOB(w.id).advOs
-    const carryFwd = log ? parseFloat(log.carryForward||0) : getOB(w.id).carryFwd
+    // prevAdv/carryFwd from:
+    // 1. Current month log (auto-created by autoInitMonth with correct values)
+    // 2. Last month log's advOs/bal (if current month not init yet)
+    // 3. Opening balance (first month ever)
+    const lastLog  = lastMonthLogs[w.id]||null
+    const ob       = getOB(w.id)
+    const prevAdv  = log
+      ? parseFloat(log.prevAdv||0)
+      : lastLog ? parseFloat(lastLog.advOs||0) : ob.advOs
+    const carryFwd = log
+      ? parseFloat(log.carryForward||0)
+      : lastLog ? parseFloat(lastLog.bal||0) : ob.carryFwd
     const newAdv   = getNewAdv(w.id)
 
     // Live calc
