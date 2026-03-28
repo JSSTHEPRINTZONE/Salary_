@@ -848,9 +848,19 @@ async function buildSaveData(w,te,existingLog,daysInMonth){
     carryFwd=parseFloat(existingLog.carryForward||0)
   } else {
     const ob=getOB(w.id)
+    // FIX: Get prevAdv from last month's saved ADV_OS (not opening balance)
+    // Opening balance is only for the very first month
     const cr=await api('getLastCarryForward',{workerId:w.id,beforeMonth:activeMonth})
-    if(cr&&cr.bal!==0){prevAdv=ob.advOs;carryFwd=cr.bal}
-    else{prevAdv=ob.advOs;carryFwd=ob.carryFwd}
+    const lastLog=await api('getLastSalaryLog',{workerId:w.id,beforeMonth:activeMonth})
+    if(lastLog&&lastLog.log){
+      // Use last month's ADV_OS as this month's prevAdv
+      prevAdv=parseFloat(lastLog.log.advOs||0)
+      carryFwd=parseFloat(lastLog.log.bal||0)  // BAL from last payment
+    } else {
+      // First month — use opening balance
+      prevAdv=ob.advOs
+      carryFwd=cr&&cr.bal?cr.bal:ob.carryFwd
+    }
   }
   const newAdv=getNewAdv(w.id)
   const otHrsEntered=parseFloat(te.otHrs||0)
@@ -1076,7 +1086,8 @@ function buildSalaryTable(){
       otHrsEntered:isT1?parseFloat(otHrsVal)||0:0,
       totalHrsWorked:isT1?parseFloat(mode==='A'?totalHrs:0)||0:0,
       advDeducted:parseFloat(advDed)||0,cane:parseFloat(cane)||0,
-      prevAdv,newAdv,carryForward:carryFwd,customAdditions:0,customDeductions:0
+      prevAdv,newAdv,carryForward:carryFwd,customAdditions:0,customDeductions:0,
+      esiEligible:w.esiEligible||false  // FIX: pass ESI flag so calcWages computes ESI
     }
     mFields.forEach(f=>{
       const v=parseFloat((te.customData&&te.customData[f.id])||(log&&log.customData?log.customData[f.id]:0))||0
@@ -1198,10 +1209,12 @@ function recalcRow(wid,daysInMonth){
     if(f.affects==='deduct')customDed+=v
   })
   const entry={wdays,otHrsEntered:isT1?otHrsVal:0,totalHrsWorked:isT1&&mode==='A'?totalHrs:0,
-    advDeducted:advDed,cane,prevAdv,newAdv,carryForward:carryFwd,customAdditions:customAdd,customDeductions:customDed}
+    advDeducted:advDed,cane,prevAdv,newAdv,carryForward:carryFwd,customAdditions:customAdd,customDeductions:customDed,
+    esiEligible:w.esiEligible||false}  // FIX: include ESI flag
   const calc=calcWages(w,entry,daysInMonth)
   const el=document.getElementById('np-'+wid)
-  if(el){el.textContent=fmtMoney(calc.wagesPayable);el.className='net-pay'+(calc.wagesPayable<=0?' zero':'')}
+  // Update both wagesPayable and netPayable (after ESI)
+  if(el){el.textContent=fmtMoney(calc.netPayable||calc.wagesPayable);el.className='net-pay'+(calc.netPayable<=0?' zero':'')}
 }
 function updateEditCount(){const el=document.getElementById('edit-count');if(el)el.textContent=Object.keys(tableEdits).length}
 function resetEdits(){tableEdits={};rowLocks={};editUnlocked.clear();buildSalaryTable();updateEditCount()}
