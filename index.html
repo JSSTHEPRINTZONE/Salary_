@@ -1501,12 +1501,14 @@ function openPayModal(wid){
     esiHidden.value=0
   }
 
-  // Default actual paid = netPayable (wages - ESI) if ESI applies, else wagesPayable
+  // Calculate netAfterEsi FIRST before using it
+  const netAfterEsi = w.esiEligible&&esiAmt>0 ? parseFloat(log.wagesPayable||0)-esiAmt : parseFloat(log.wagesPayable||0)
+
+  // Default actual paid = net (after ESI) if eligible, else wagesPayable
   const defaultPay=log.actualPaid||(w.esiEligible&&esiAmt>0?Math.round(netAfterEsi):Math.round(log.wagesPayable))
   document.getElementById('pay-actual').value=defaultPay
 
   // Summary
-  const netAfterEsi = w.esiEligible&&esiAmt>0 ? parseFloat(log.wagesPayable||0)-esiAmt : parseFloat(log.wagesPayable||0)
   document.getElementById('pay-summary').innerHTML=`
     <div style="display:flex;justify-content:space-between;margin-bottom:6px">
       <span class="text2">Wages Payable</span>
