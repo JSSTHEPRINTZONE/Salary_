@@ -782,7 +782,13 @@ function renderTab(){
   }
   else if(activeTab==='payment'){c.innerHTML=renderPaymentPage()}
   else if(activeTab==='overview'){c.innerHTML=renderOverviewShell();loadOverview()}
-  else if(activeTab==='advances')c.innerHTML=renderAdvancesPage()
+  else if(activeTab==='advances'){
+    c.innerHTML=renderAdvancesPage()  // render immediately with cached data
+    // Then fetch fresh summary and re-render
+    api('getAdvanceSummary',{month:activeMonth}).then(r=>{
+      if(r){advSummary=r.summary||{};c.innerHTML=renderAdvancesPage()}
+    })
+  }
   else if(activeTab==='ledger')c.innerHTML=renderLedgerPage()
   else if(activeTab==='settings')c.innerHTML=renderSettings()
 }
