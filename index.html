@@ -893,11 +893,14 @@ async function buildSaveData(w,te,existingLog,daysInMonth){
     if(lastLog&&lastLog.log){
       // Use last month's ADV_OS as this month's prevAdv
       prevAdv=parseFloat(lastLog.log.advOs||0)
-      carryFwd=parseFloat(lastLog.log.bal||0)  // BAL from last payment
+      // carryFwd = -BAL (sign fix: underpaid BAL<0 → -BAL>0 adds to wages)
+      carryFwd=-(parseFloat(lastLog.log.bal||0))
     } else {
-      // First month — use opening balance
-      prevAdv=ob.advOs
-      carryFwd=cr&&cr.bal?cr.bal:ob.carryFwd
+      // First month ever — use opening balance only
+      // prevAdv = opening advance balance (0 if none set)
+      // carryFwd = opening carry forward (0 if none set)
+      prevAdv=ob.advOs||0
+      carryFwd=ob.carryFwd||0
     }
   }
   const newAdv=getNewAdv(w.id)
