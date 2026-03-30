@@ -322,6 +322,22 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
   <div class="modal">
     <h3 id="pay-title">Enter Payment</h3>
     <div id="pay-summary" style="background:var(--surf2);border:1px solid var(--border);border-radius:6px;padding:12px;margin-bottom:14px;font-size:13px"></div>
+    <!-- ESI TOGGLE — only shown for ESI eligible workers -->
+    <div id="pay-esi-row" style="display:none;background:var(--redlt);border:1px solid var(--redbr);border-radius:6px;padding:10px 14px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div>
+          <div style="font-weight:600;font-size:13px;color:var(--red)">ESI Deduction</div>
+          <div style="font-size:11px;color:var(--text2);margin-top:2px">ESI eligible worker — deduct from wages?</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="mono" id="pay-esi-amt" style="color:var(--red);font-weight:700"></span>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;margin:0;font-size:13px;color:var(--text)">
+            <input type="checkbox" id="pay-esi-apply" checked onchange="onEsiToggle()" style="width:16px;height:16px;cursor:pointer;accent-color:var(--red)"/>
+            Apply ESI
+          </label>
+        </div>
+      </div>
+    </div>
     <div class="fg fg2">
       <div class="fgrp"><label>Payment Mode</label>
         <select id="pay-mode" onchange="onPayMode()">
@@ -341,6 +357,7 @@ hr{border:none;border-top:1px solid var(--border);margin:14px 0}
     <div id="pay-diff" class="mt8"></div>
     <input type="hidden" id="pay-log-id"/>
     <input type="hidden" id="pay-worker-id"/>
+    <input type="hidden" id="pay-esi-amount" value="0"/>
     <div class="modal-footer">
       <button class="btn btn-outline" onclick="closeModal('pay-modal')">Cancel</button>
       <button class="btn btn-primary" onclick="confirmPayment()">✓ Confirm Payment</button>
@@ -1423,11 +1440,32 @@ function openPayModal(wid){
   document.getElementById('pay-title').textContent='Enter Payment — '+w.name
   document.getElementById('pay-log-id').value=log.id
   document.getElementById('pay-worker-id').value=wid
-  document.getElementById('pay-actual').value=log.actualPaid||Math.round(log.wagesPayable)
   document.getElementById('pay-mode').value=log.paymentMode||w.paymentMode||'Cash'
   document.getElementById('pay-cash').value=log.cashAmt||''
   document.getElementById('pay-bank').value=log.bankAmt||''
   document.getElementById('pay-diff').innerHTML=''
+
+  // ESI toggle — show only if worker has ESI amount > 0
+  const esiAmt=parseFloat(log.esiAmount||0)
+  const esiRow=document.getElementById('pay-esi-row')
+  const esiAmtEl=document.getElementById('pay-esi-amt')
+  const esiChk=document.getElementById('pay-esi-apply')
+  const esiHidden=document.getElementById('pay-esi-amount')
+  if(esiAmt>0){
+    esiRow.style.display='block'
+    esiAmtEl.textContent='− '+fmtMoney(esiAmt)
+    esiChk.checked=true   // default: apply ESI
+    esiHidden.value=esiAmt
+  } else {
+    esiRow.style.display='none'
+    esiHidden.value=0
+  }
+
+  // Default actual paid = netPayable (wages - ESI) if ESI applies, else wagesPayable
+  const defaultPay=log.actualPaid||(esiAmt>0?Math.round(log.netPayable||log.wagesPayable-esiAmt):Math.round(log.wagesPayable))
+  document.getElementById('pay-actual').value=defaultPay
+
+  // Summary
   document.getElementById('pay-summary').innerHTML=`
     <div style="display:flex;justify-content:space-between;margin-bottom:6px">
       <span class="text2">Wages Payable</span>
@@ -1437,35 +1475,62 @@ function openPayModal(wid){
       <span>Adv O/S: ${fmtMoney(log.advOs)}</span>
       <span>Carry Fwd: ${carryFwdDisplay(parseFloat(log.carryForward||0)).text}</span>
     </div>
-    ${log.esiAmount>0?`<div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
-      <span class="text2">ESI Deduction (0.75%)</span>
-      <span class="mono" style="color:var(--red)">− ${fmtMoney(log.esiAmount)}</span>
+    ${esiAmt>0?`
+    <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+      <span class="text2">ESI (0.75% of salary)</span>
+      <span class="mono" style="color:var(--red)">− ${fmtMoney(esiAmt)}</span>
     </div>
     <div style="display:flex;justify-content:space-between;margin-top:4px">
-      <span class="text2">Net Payable (after ESI)</span>
+      <span class="text2" style="font-weight:600">Net Payable (after ESI)</span>
       <span class="mono" style="font-weight:700;font-size:15px;color:var(--green)">${fmtMoney(log.netPayable||log.wagesPayable)}</span>
     </div>`:''}
-    <div style="font-size:11px;color:var(--text3);margin-top:6px">Difference = Actual Paid − Net Payable → next month carry forward</div>`
+    <div style="font-size:11px;color:var(--text3);margin-top:6px">BAL = Actual Paid − Net Payable → next month carry forward</div>`
   onPayMode()
+  updatePayDiff()
   document.getElementById('pay-modal').classList.add('open')
+}
+
+// Called when ESI checkbox is toggled
+function onEsiToggle(){
+  const chk=document.getElementById('pay-esi-apply')
+  const esiHidden=document.getElementById('pay-esi-amount')
+  const logId=document.getElementById('pay-log-id').value
+  const log=salaryLogs.find(l=>l.id===logId);if(!log)return
+  const esiAmt=parseFloat(log.esiAmount||0)
+  // Update hidden ESI value
+  esiHidden.value=chk.checked?esiAmt:0
+  // Update default actual paid
+  const net=chk.checked?Math.round(log.netPayable||log.wagesPayable-esiAmt):Math.round(log.wagesPayable)
+  document.getElementById('pay-actual').value=net
+  updatePayDiff()
+}
+
+// Get effective net (wages - ESI if applied)
+function getEffectiveNet(log){
+  const esiApplied=document.getElementById('pay-esi-apply')?.checked
+  const esiAmt=parseFloat(log.esiAmount||0)
+  if(esiAmt>0&&esiApplied) return parseFloat(log.netPayable||0)||parseFloat(log.wagesPayable||0)-esiAmt
+  return parseFloat(log.wagesPayable||0)
+}
+
+function updatePayDiff(){
+  const actual=parseFloat(document.getElementById('pay-actual').value||0)
+  const logId=document.getElementById('pay-log-id').value
+  const log=salaryLogs.find(l=>l.id===logId);if(!log)return
+  showPayDiff(actual - getEffectiveNet(log))
 }
 function onPayMode(){
   const m=document.getElementById('pay-mode').value
   document.getElementById('pay-split').style.display=m==='Both'?'grid':'none'
 }
 function onPayActual(){
-  const actual=parseFloat(document.getElementById('pay-actual').value||0)
-  const logId=document.getElementById('pay-log-id').value
-  const log=salaryLogs.find(l=>l.id===logId);if(!log)return
-  showPayDiff(actual-parseFloat(log.wagesPayable||0))
+  updatePayDiff()
 }
 function onPaySplit(){
   const cash=parseFloat(document.getElementById('pay-cash').value||0)
   const bank=parseFloat(document.getElementById('pay-bank').value||0)
   document.getElementById('pay-actual').value=cash+bank||''
-  const logId=document.getElementById('pay-log-id').value
-  const log=salaryLogs.find(l=>l.id===logId);if(!log)return
-  showPayDiff((cash+bank)-parseFloat(log.wagesPayable||0))
+  updatePayDiff()
 }
 function showPayDiff(diff){
   const el=document.getElementById('pay-diff');if(!el)return
@@ -1486,14 +1551,26 @@ async function confirmPayment(){
   if(!actual){toast('Enter amount paid','warn');return}
   const log=salaryLogs.find(l=>l.id===logId);if(!log)return
   if(mode==='Both'&&Math.abs((cash+bank)-actual)>1){toast('Cash+Bank must equal total paid','warn');return}
-  const bal=(actual-parseFloat(log.wagesPayable||0)).toFixed(2)
-  const updated={...log,actualPaid:actual,paymentMode:mode,
+
+  // Use effective net (wages - ESI if applied) for BAL calculation
+  const effectiveNet=getEffectiveNet(log)
+  const esiApplied=document.getElementById('pay-esi-apply')?.checked||false
+  const esiAmt=esiApplied?parseFloat(log.esiAmount||0):0
+  const bal=(actual-effectiveNet).toFixed(2)
+
+  const updated={...log,
+    actualPaid:actual,
+    paymentMode:mode,
     cashAmt:mode==='Both'?cash:(mode==='Cash'?actual:0),
     bankAmt:mode==='Both'?bank:(mode==='Bank'?actual:0),
-    bal,finalized:true}
+    // Store whether ESI was applied this payment
+    esiAmount:esiAmt,
+    netPayable:effectiveNet,
+    bal,
+    finalized:true
+  }
   const r=await api('saveSalary',{data:updated})
   if(r&&r.success){
-    // Save carry forward
     await api('saveCarryForward',{data:{workerId:wid,month:activeMonth,bal,note:'From salary payment'}})
     closeModal('pay-modal')
     const s=await api('getSalaryLog',{month:activeMonth})
