@@ -888,20 +888,39 @@ async function buildSaveData(w,te,existingLog,daysInMonth){
     }
   }
   const newAdv=getNewAdv(w.id)
-  const otHrsEntered=parseFloat(te.otHrs||0)
+
+  // FIX: For each field, prefer te (live edit) → existingLog (saved) → 0
+  // This ensures partial edits don't clear previously saved values
+  function teOrLog(teVal, logVal, fallback=0){
+    if(teVal!==undefined&&teVal!=='') return parseFloat(teVal)||fallback
+    if(logVal!==undefined&&logVal!=='') return parseFloat(logVal)||fallback
+    return fallback
+  }
+
+  const wdaysVal    = teOrLog(te.wdays,    existingLog?.wdays)
+  const otHrsVal    = teOrLog(te.otHrs,    existingLog?.otHrs)
+  const totalHrsVal = teOrLog(te.totalHrs, existingLog?.totalHrsWorked)
+  const advDedVal   = teOrLog(te.advDed,   existingLog?.advDeducted)
+  const caneVal     = teOrLog(te.cane,     existingLog?.cane)
+  const holidayVal  = teOrLog(te.holiday,  existingLog?.holiday)
+
+  const otHrsEntered = isT1 ? otHrsVal : 0
   const entry={
-    wdays:parseFloat(te.wdays||0),
-    otHrsEntered:isT1?otHrsEntered:0,
-    totalHrsWorked:isT1?(parseFloat(te.wdays||0)*8+otHrsEntered):0,
-    advDeducted:parseFloat(te.advDed||0),
-    cane:parseFloat(te.cane||0),
+    wdays:wdaysVal,
+    otHrsEntered:otHrsEntered,
+    totalHrsWorked:isT1?(wdaysVal*8+otHrsEntered):0,
+    advDeducted:advDedVal,
+    cane:caneVal,
     prevAdv,newAdv,carryForward:carryFwd,
     customAdditions:0,customDeductions:0,
     esiEligible:w.esiEligible||false
   }
   const mFields=mcf();let customAdd=0,customDed=0
   mFields.forEach(f=>{
-    const val=parseFloat((te.customData&&te.customData[f.id])||0)
+    // FIX: also fall back to existingLog customData
+    const teVal = te.customData&&te.customData[f.id]!==undefined ? te.customData[f.id] : null
+    const logVal = existingLog?.customData?.[f.id]
+    const val = parseFloat(teVal!==null?teVal:(logVal||0))||0
     if(f.affects==='add')customAdd+=val
     if(f.affects==='deduct')customDed+=val
   })
@@ -910,7 +929,7 @@ async function buildSaveData(w,te,existingLog,daysInMonth){
   return{
     id:existingLog?.id||null,
     workerId:w.id,month:activeMonth,
-    wdays:entry.wdays,holiday:parseFloat(te.holiday||0),
+    wdays:entry.wdays,holiday:holidayVal,
     otHrs:isT1?calc.otHrs:0,totalHrsWorked:calc.totalHrsWorked,
     salaryAmt:calc.salaryAmt,otAmt:calc.otAmt,totalPayable:calc.totalPayable,
     prevAdv,newAdv,advDeducted:entry.advDeducted,advOs:calc.advOs,
@@ -1398,8 +1417,17 @@ function renderPaymentPage(){
               <td class="c mono" style="${cfDisp.color}">${cfDisp.text}</td>
               <td class="c mono text2">${parseFloat(l.cane||0)>0?'₹'+Math.round(l.cane):'—'}</td>
               <td class="c mono" style="font-weight:700;color:var(--accent);font-size:14px">₹${Math.round(l.wagesPayable||0).toLocaleString('en-IN')}</td>
-              <td class="c mono" style="color:var(--red)">${parseFloat(l.esiAmount||0)>0?'− ₹'+Math.round(l.esiAmount):'—'}</td>
-              <td class="c mono" style="font-weight:700;color:var(--green);font-size:14px">₹${Math.round(l.netPayable||l.wagesPayable||0).toLocaleString('en-IN')}</td>
+              <td class="c mono" style="color:var(--red)">${(()=>{
+                const w2=workers.find(x=>x.id===l.workerId)
+                const esi=parseFloat(l.esiAmount||0)||(w2?.esiEligible?Math.round(parseFloat(l.salaryAmt||0)*(parseFloat(settings.ESI_RATE)||0.0075)):0)
+                return esi>0?'− ₹'+Math.round(esi):'—'
+              })()}</td>
+              <td class="c mono" style="font-weight:700;color:var(--green);font-size:14px">${(()=>{
+                const w2=workers.find(x=>x.id===l.workerId)
+                const esi=parseFloat(l.esiAmount||0)||(w2?.esiEligible?Math.round(parseFloat(l.salaryAmt||0)*(parseFloat(settings.ESI_RATE)||0.0075)):0)
+                const net=parseFloat(l.netPayable||0)||parseFloat(l.wagesPayable||0)-(w2?.esiEligible?esi:0)
+                return '₹'+Math.round(net).toLocaleString('en-IN')
+              })()}</td>
               <td class="c mono">${l.actualPaid?'₹'+Math.round(l.actualPaid).toLocaleString('en-IN'):'—'}</td>
               <td class="c">${l.actualPaid?pPill(l.paymentMode):'—'}</td>
               <td class="c mono" style="${bal>0?'color:var(--orange)':bal<0?'color:var(--green)':'color:var(--text3)'}">${l.bal!==''&&l.bal!==undefined?Math.round(bal):'—'}</td>
@@ -1445,27 +1473,40 @@ function openPayModal(wid){
   document.getElementById('pay-bank').value=log.bankAmt||''
   document.getElementById('pay-diff').innerHTML=''
 
-  // ESI toggle — show only if worker has ESI amount > 0
-  const esiAmt=parseFloat(log.esiAmount||0)
+  // ESI: use stored esiAmount, OR recalculate if worker is ESI eligible
+  // This handles old records saved before ESI feature was added
+  const esiRate=parseFloat(settings.ESI_RATE)||0.0075
+  let esiAmt=parseFloat(log.esiAmount||0)
+  if(esiAmt===0 && w.esiEligible){
+    // Recalculate from salaryAmt (ESI base = salary only, no OT)
+    const esiBase=parseFloat(log.salaryAmt||0)
+    esiAmt=Math.round(esiBase*esiRate)
+  }
   const esiRow=document.getElementById('pay-esi-row')
   const esiAmtEl=document.getElementById('pay-esi-amt')
   const esiChk=document.getElementById('pay-esi-apply')
   const esiHidden=document.getElementById('pay-esi-amount')
-  if(esiAmt>0){
+  if(w.esiEligible && esiAmt>0){
     esiRow.style.display='block'
     esiAmtEl.textContent='− '+fmtMoney(esiAmt)
-    esiChk.checked=true   // default: apply ESI
+    esiChk.checked=true
     esiHidden.value=esiAmt
+    esiHidden.setAttribute('data-original',esiAmt)  // store for toggle
+    // Also update log.esiAmount so getEffectiveNet works correctly
+    log.esiAmount=esiAmt
+    if(!log.netPayable||log.netPayable===log.wagesPayable)
+      log.netPayable=parseFloat(log.wagesPayable||0)-esiAmt
   } else {
     esiRow.style.display='none'
     esiHidden.value=0
   }
 
   // Default actual paid = netPayable (wages - ESI) if ESI applies, else wagesPayable
-  const defaultPay=log.actualPaid||(esiAmt>0?Math.round(log.netPayable||log.wagesPayable-esiAmt):Math.round(log.wagesPayable))
+  const defaultPay=log.actualPaid||(w.esiEligible&&esiAmt>0?Math.round(netAfterEsi):Math.round(log.wagesPayable))
   document.getElementById('pay-actual').value=defaultPay
 
   // Summary
+  const netAfterEsi = w.esiEligible&&esiAmt>0 ? parseFloat(log.wagesPayable||0)-esiAmt : parseFloat(log.wagesPayable||0)
   document.getElementById('pay-summary').innerHTML=`
     <div style="display:flex;justify-content:space-between;margin-bottom:6px">
       <span class="text2">Wages Payable</span>
@@ -1475,14 +1516,14 @@ function openPayModal(wid){
       <span>Adv O/S: ${fmtMoney(log.advOs)}</span>
       <span>Carry Fwd: ${carryFwdDisplay(parseFloat(log.carryForward||0)).text}</span>
     </div>
-    ${esiAmt>0?`
+    ${w.esiEligible&&esiAmt>0?`
     <div style="display:flex;justify-content:space-between;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
       <span class="text2">ESI (0.75% of salary)</span>
       <span class="mono" style="color:var(--red)">− ${fmtMoney(esiAmt)}</span>
     </div>
     <div style="display:flex;justify-content:space-between;margin-top:4px">
       <span class="text2" style="font-weight:600">Net Payable (after ESI)</span>
-      <span class="mono" style="font-weight:700;font-size:15px;color:var(--green)">${fmtMoney(log.netPayable||log.wagesPayable)}</span>
+      <span class="mono" style="font-weight:700;font-size:15px;color:var(--green)">${fmtMoney(netAfterEsi)}</span>
     </div>`:''}
     <div style="font-size:11px;color:var(--text3);margin-top:6px">BAL = Actual Paid − Net Payable → next month carry forward</div>`
   onPayMode()
@@ -1496,11 +1537,13 @@ function onEsiToggle(){
   const esiHidden=document.getElementById('pay-esi-amount')
   const logId=document.getElementById('pay-log-id').value
   const log=salaryLogs.find(l=>l.id===logId);if(!log)return
-  const esiAmt=parseFloat(log.esiAmount||0)
-  // Update hidden ESI value
+  // Use the ESI amount that was set in openPayModal (may be recalculated)
+  const esiAmtEl=document.getElementById('pay-esi-amt')
+  const esiAmt=parseFloat(esiHidden.getAttribute('data-original')||esiHidden.value||0)
   esiHidden.value=chk.checked?esiAmt:0
-  // Update default actual paid
-  const net=chk.checked?Math.round(log.netPayable||log.wagesPayable-esiAmt):Math.round(log.wagesPayable)
+  const net=chk.checked
+    ?Math.round(parseFloat(log.wagesPayable||0)-esiAmt)
+    :Math.round(log.wagesPayable||0)
   document.getElementById('pay-actual').value=net
   updatePayDiff()
 }
@@ -1508,8 +1551,9 @@ function onEsiToggle(){
 // Get effective net (wages - ESI if applied)
 function getEffectiveNet(log){
   const esiApplied=document.getElementById('pay-esi-apply')?.checked
-  const esiAmt=parseFloat(log.esiAmount||0)
-  if(esiAmt>0&&esiApplied) return parseFloat(log.netPayable||0)||parseFloat(log.wagesPayable||0)-esiAmt
+  const esiStored=parseFloat(document.getElementById('pay-esi-amount')?.value||0)
+  // Use stored ESI amount from hidden field (may be recalculated)
+  if(esiStored>0&&esiApplied) return parseFloat(log.wagesPayable||0)-esiStored
   return parseFloat(log.wagesPayable||0)
 }
 
