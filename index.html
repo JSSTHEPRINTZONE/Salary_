@@ -783,10 +783,17 @@ function renderTab(){
   else if(activeTab==='payment'){c.innerHTML=renderPaymentPage()}
   else if(activeTab==='overview'){c.innerHTML=renderOverviewShell();loadOverview()}
   else if(activeTab==='advances'){
-    c.innerHTML=renderAdvancesPage()  // render immediately with cached data
-    // Then fetch fresh summary and re-render
-    api('getAdvanceSummary',{month:activeMonth}).then(r=>{
-      if(r){advSummary=r.summary||{};c.innerHTML=renderAdvancesPage()}
+    // Show skeleton while loading
+    c.innerHTML=`<div class="sec-hdr"><div class="sec-title">Advances</div></div>
+      <div class="empty" style="padding:40px">⏳ Loading advance data...</div>`
+    // Always fetch fresh — advances change when salary is processed
+    Promise.all([
+      api('getAdvanceSummary',{month:activeMonth}),
+      api('getAdvances')
+    ]).then(([as,av])=>{
+      if(as)advSummary=as.summary||{}
+      if(av)advances=av.advances||[]
+      c.innerHTML=renderAdvancesPage()
     })
   }
   else if(activeTab==='ledger')c.innerHTML=renderLedgerPage()
@@ -1778,18 +1785,20 @@ function renderAdvancesPage(){
 
     <!-- Summary -->
     <div class="ov-grid" style="margin-bottom:16px">
-      <div class="ov-card orange">
+      <div class="ov-card ${(advSummary.totalPending||0)>0?'orange':''}">
         <div class="ov-lbl">Total Pending</div>
-        <div class="ov-val">${fmtMoney(advSummary.totalPending||0)}</div>
-        <div class="ov-sub">${(advSummary.workersWithPending||[]).length} workers</div>
+        <div class="ov-val" style="${(advSummary.totalPending||0)>0?'color:var(--orange)':''}">${fmtMoney(advSummary.totalPending||0)}</div>
+        <div class="ov-sub">${(advSummary.workersWithPending||[]).length} workers with pending</div>
       </div>
       <div class="ov-card">
         <div class="ov-lbl">Given This Month</div>
         <div class="ov-val">${fmtMoney(advSummary.thisGiven||0)}</div>
+        <div class="ov-sub">${activeMonth}</div>
       </div>
       <div class="ov-card green">
         <div class="ov-lbl">Recovered This Month</div>
         <div class="ov-val">${fmtMoney(advSummary.thisRecovered||0)}</div>
+        <div class="ov-sub">From salary deductions</div>
       </div>
       <div class="ov-card">
         <div class="ov-lbl">Given Last Month</div>
@@ -1797,6 +1806,7 @@ function renderAdvancesPage(){
         <div class="ov-sub">Recovered: ${fmtMoney(advSummary.prevRecovered||0)}</div>
       </div>
     </div>
+    ${!advSummary.hasOwnProperty('totalPending')?'<div class="alert alert-warn">⚠ Advance data still loading...</div>':''}
 
     <!-- Worker advance status -->
     <div class="sec-title" style="margin-bottom:10px">Worker Advance Status</div>
@@ -1807,19 +1817,25 @@ function renderAdvancesPage(){
       <tbody>
         ${active.map((w,i)=>{
           const pend=(advSummary.workersWithPending||[]).find(x=>x.workerId===w.id)
-          const pending=pend?pend.pending:0
-          const limit=pend?pend.limit:(parseFloat(w.advanceLimit)||defLimit)
+          const pending=pend?parseFloat(pend.pending||0):0
+          const limit=parseFloat(w.advanceLimit)||defLimit
           const pct=limit>0?Math.round((pending/limit)*100):0
-          const color=pct>=100?'color:var(--red)':pct>=80?'color:var(--orange)':'color:var(--green)'
+          const pendColor=pct>=100?'color:var(--red);font-weight:700':pct>=80?'color:var(--orange);font-weight:700':pending>0?'color:var(--orange);font-weight:600':'color:var(--text3)'
+          // Total advances ever given to this worker (from advances array)
+          const wAdvs=advances.filter(a=>a.workerId===w.id)
+          const totalGiven=wAdvs.reduce((s,a)=>s+parseFloat(a.amount||0),0)
           return`<tr>
-            <td class="text3 mono">${i+1}</td><td><strong>${w.name}</strong></td><td>${tPill(w.type)}</td>
+            <td class="text3 mono">${i+1}</td>
+            <td><strong>${w.name}</strong></td>
+            <td>${tPill(w.type)}</td>
             <td class="c mono">${fmtMoney(limit)}</td>
-            <td class="c mono" style="${pending>0?'color:var(--orange);font-weight:600':''}}">${pending>0?fmtMoney(pending):'—'}</td>
-            <td class="c mono" style="${color}">${pending>0?pct+'%':'—'}</td>
+            <td class="c mono" style="${pendColor}">${fmtMoney(pending)}</td>
+            <td class="c mono" style="${pendColor}">${pending>0?pct+'%':'—'}</td>
             <td class="c">${pct>=100?'<span class="st" style="background:var(--redlt);color:var(--red);border-color:var(--redbr)">🔴 Over</span>':
               pct>=80?'<span class="st" style="background:var(--orangelt);color:var(--orange);border-color:var(--orangebr)">⚠ Near</span>':
               pending>0?'<span class="st st-saved">● Pending</span>':
-              '<span class="st st-new">✓ Clear</span>'}</td>
+              totalGiven>0?'<span class="st st-new" style="color:var(--green)">✓ Cleared</span>':
+              '<span class="st st-new">— None</span>'}</td>
             ${accessRole==='admin'?`<td class="c"><button class="btn btn-primary btn-xs" onclick="openAdvModal('${w.id}')">+ Advance</button></td>`:''} 
           </tr>`
         }).join('')}
