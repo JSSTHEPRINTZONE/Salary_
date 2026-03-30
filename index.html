@@ -2388,8 +2388,30 @@ function renderArchiveSettings(){
       <input id="arch-id" placeholder="Paste Sheet ID from URL"/>
     </div>
     <div class="alert alert-warn mt8">⚠️ Monthly salary sheets will be deleted from master after archiving.</div>
-    <button class="btn btn-danger mt8" onclick="runArchive()">📦 Archive & Delete from Master</button></div>`
+    <button class="btn btn-danger mt8" onclick="runArchive()">📦 Archive & Delete from Master</button>
+    <hr style="margin:16px 0"/>
+    <h4 style="margin-bottom:6px">🧹 Remove Duplicate Rows</h4>
+    <p style="font-size:12px;color:var(--text2);margin-bottom:10px">Removes orphan duplicate rows saved before auto-init was added. Safe to run — keeps the best (finalized) record per worker.</p>
+    <div class="fg fg2">
+      <div class="fgrp"><label>Month to clean</label>
+        <select id="cleanup-month">
+          ${Array.from(document.getElementById('active-month').options).map(o=>`<option value="${o.value}">${o.text}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+    <button class="btn btn-warn mt8" onclick="runCleanupDuplicates()">🧹 Remove Duplicates</button></div>`
 }
+async function runCleanupDuplicates(){
+  const month=document.getElementById('cleanup-month').value
+  if(!month){toast('Select a month','warn');return}
+  if(!confirm('Remove duplicate rows for '+month+'? This keeps the best record per worker.'))return
+  const r=await api('cleanupDuplicates',{month})
+  if(r?.success){
+    if(r.removed===0)toast('No duplicates found for '+month)
+    else toast('Removed '+r.removed+' duplicate row(s) from '+month,'success',5000)
+  } else toast(r?.error||'Failed','error')
+}
+
 async function runArchive(){
   const from=document.getElementById('arch-from').value
   const to=document.getElementById('arch-to').value
@@ -2429,8 +2451,18 @@ async function printMonth(){
   const month=document.getElementById('active-month').selectedOptions[0].text
   const daysInMonth=getDays(activeMonth)
   const active=workers.filter(isActive)
-  const t1s=active.filter(w=>w.type==='Labour')
-  const t2s=active.filter(w=>w.type==='Employee')
+
+  // Exclude: skipped workers AND workers with 0 days + 0 salary (absent/not processed)
+  const printable=active.filter(w=>{
+    const l=salaryLogs.find(x=>x.workerId===w.id)
+    if(!l) return false                           // no record at all — exclude
+    if(l.skipped) return false                    // explicitly skipped — exclude
+    if(!parseFloat(l.wdays||0)&&!parseFloat(l.totalPayable||0)) return false  // 0 days, 0 salary — exclude
+    return true
+  })
+
+  const t1s=printable.filter(w=>w.type==='Labour')
+  const t2s=printable.filter(w=>w.type==='Employee')
   const ordered=[...t1s,...t2s]
   const rows=ordered.map(w=>{
     const l=salaryLogs.find(x=>x.workerId===w.id)
