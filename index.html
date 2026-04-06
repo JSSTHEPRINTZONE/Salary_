@@ -785,6 +785,11 @@ function renderTab(){
       }
       buildSalaryTable()
       updateDraftBanner()
+      // Show sync banner if loadAll auto-synced anything
+      if(r.syncUpdated > 0){
+        showSyncBanner(r.syncChanges||[], '')
+        toast('Auto-synced '+r.syncUpdated+' worker(s) from previous month','info',4000)
+      }
     })
   }
   else if(activeTab==='payment'){c.innerHTML=renderPaymentPage()}
@@ -1050,7 +1055,12 @@ function renderSalaryPage(){
       </select>
       <div class="fsep"></div>
       <input type="text" placeholder="🔍 Search..." id="sf-search" oninput="buildSalaryTable()" style="min-width:120px"/>
+      <div class="fsep"></div>
+      <button class="btn btn-outline btn-sm" onclick="refreshFromPrevMonth()" title="Re-sync carry forward, prev advance & new advances from previous month">
+        🔄 Sync from Prev Month
+      </button>
     </div>
+    <div id="sync-changes-banner" style="display:none;background:var(--greenlt);border:1px solid var(--greenbr);border-radius:var(--r);padding:10px 14px;margin-bottom:10px;font-size:12px;color:var(--green)"></div>
     ${accessRole==='view'?'<div class="view-note">👁 View Only</div>':''}
     ${accessRole==='admin'?`
     <div class="batch-bar">
@@ -1346,7 +1356,110 @@ async function saveAllSalary(){
   clearDraft()   // Clear draft after successful save
   buildSalaryTable();updateEditCount()
 }
+// ═══════════════════════════════════════════════════════
+// SYNC FROM PREVIOUS MONTH
+// Re-reads prev month final state → updates current month
+// PREV_ADV, CARRY_FORWARD, NEW_ADV, ADV_OS
+// Shows a diff of what changed
+// ═══════════════════════════════════════════════════════
+async function refreshFromPrevMonth(){
+  const btn = document.querySelector('[onclick="refreshFromPrevMonth()"]')
+  if(btn){ btn.textContent='⏳ Syncing...'; btn.disabled=true }
 
+  const r = await api('syncFromPrevMonth', {month: activeMonth})
+
+  if(btn){ btn.textContent='🔄 Sync from Prev Month'; btn.disabled=false }
+
+  if(!r){ toast('Could not sync','error'); return }
+  if(!r.success){ toast(r.msg||'Sync failed','warn'); return }
+
+  if(r.updated === 0){
+    toast('Already up to date — no changes needed','info')
+    showSyncBanner([],r.prevMonth)
+    return
+  }
+
+  // Reload salary logs — sheet was updated server-side
+  const s = await api('getSalaryLog', {month: activeMonth})
+  if(s) salaryLogs = s.logs || []
+
+  // Also reload advances (newAdv may have changed)
+  const a = await api('getAdvances')
+  if(a) advances = a.advances || []
+
+  buildSalaryTable()
+  toast('Synced '+r.updated+' worker(s) from '+r.prevMonth, 'success', 5000)
+  showSyncBanner(r.changes, r.prevMonth)
+}
+
+function showSyncBanner(changes, prevMonth){
+  const el = document.getElementById('sync-changes-banner')
+  if(!el) return
+
+  if(!changes || changes.length === 0){
+    el.style.display = 'none'
+    return
+  }
+
+  const reasonLabel = {
+    'first-entry':     '🆕 First entry',
+    'prev-finalized':  '✓ Prev paid',
+    'prev-unpaid':     '⚠ Prev NOT paid',
+    'prev-partial':    '⏳ Prev partial',
+    'no-prev-record':  '— No prev record'
+  }
+
+  el.style.display = 'block'
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+      <strong>✓ Synced ${changes.length} worker(s) from ${prevMonth}</strong>
+      <button onclick="document.getElementById('sync-changes-banner').style.display='none'"
+        style="border:none;background:none;cursor:pointer;color:var(--green);font-size:14px">✕</button>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11px">
+      <thead>
+        <tr style="color:var(--text2)">
+          <th style="text-align:left;padding:3px 6px">Worker</th>
+          <th style="text-align:center;padding:3px 6px">Status</th>
+          <th style="text-align:right;padding:3px 6px">Prev Adv O/S</th>
+          <th style="text-align:right;padding:3px 6px">Carry Fwd</th>
+          <th style="text-align:right;padding:3px 6px">New Adv</th>
+          <th style="text-align:right;padding:3px 6px">Change</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${changes.map(c=>{
+          const cfColor = c.carryFwd > 0 ? 'color:var(--green);font-weight:700'
+                        : c.carryFwd < 0 ? 'color:var(--red);font-weight:700'
+                        : 'color:var(--text3)'
+          const cfText  = c.carryFwd > 0 ? '+₹'+Math.round(c.carryFwd).toLocaleString('en-IN')
+                        : c.carryFwd < 0 ? '−₹'+Math.abs(Math.round(c.carryFwd)).toLocaleString('en-IN')
+                        : '—'
+          const prevAdvChange = Math.abs(c.prevAdv - c.oldPrevAdv) > 0.1
+            ? `<span style="color:var(--orange)"> (was ₹${Math.round(c.oldPrevAdv)})</span>` : ''
+          const cfChange = Math.abs(c.carryFwd - c.oldCarryFwd) > 0.1
+            ? `<span style="color:var(--orange)"> (was ${c.oldCarryFwd>0?'+':''}₹${Math.round(c.oldCarryFwd)})</span>` : ''
+          return`<tr style="border-top:1px solid var(--greenbr)">
+            <td style="padding:3px 6px;font-weight:600">${c.name}</td>
+            <td style="padding:3px 6px;text-align:center;font-size:10px">${reasonLabel[c.reason]||c.reason}</td>
+            <td style="padding:3px 6px;text-align:right;font-family:var(--mono)">
+              ₹${Math.round(c.prevAdv).toLocaleString('en-IN')}${prevAdvChange}
+            </td>
+            <td style="padding:3px 6px;text-align:right;font-family:var(--mono);${cfColor}">
+              ${cfText}${cfChange}
+            </td>
+            <td style="padding:3px 6px;text-align:right;font-family:var(--mono)">
+              ${c.newAdv > 0 ? '₹'+Math.round(c.newAdv).toLocaleString('en-IN') : '—'}
+            </td>
+            <td style="padding:3px 6px;text-align:right;font-family:var(--mono);color:var(--accent)">
+              ₹${Math.round(c.advOs).toLocaleString('en-IN')}
+            </td>
+          </tr>`
+        }).join('')}
+      </tbody>
+    </table>`
+}
+  
 // ═══════════════════════════════════════════════════════════
 // PAYMENT TAB
 // ═══════════════════════════════════════════════════════════
